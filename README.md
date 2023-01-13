@@ -1,101 +1,31 @@
 # RookieDB
 
-![The official unofficial mascot of the class projects](images/derpydb-small.jpg)
-
 This repo contains a bare-bones database implementation, which supports
 executing simple transactions in series. In the assignments of
 this class, you will be adding support for
 B+ tree indices, efficient join algorithms, query optimization, multigranularity
 locking to support concurrent execution of transactions, and database recovery.
 
-Specs for each of the projects will be released throughout the semester at here: [https://cs186.gitbook.io/project/](https://cs186.gitbook.io/project/)
-
-## Overview
-
-In this document, we explain
-
-- how to fetch the released code
-- how to fetch any updates to the released code
-- how to setup a local development environment
-- how to run tests using IntelliJ
-- how to submit your code to turn in assignments
-- the general architecture of the released code
-
-## Fetching the released code
-
-For each project, we will provide a GitHub Classroom link. Follow the
-link to create a GitHub repository with the starter code for the project you are
-working on. Use `git clone` to get a local copy of the newly
-created repository.
-
-## Fetching any updates to the released code
-
-In a perfect world, we would never have to update the released code because
-it would be perfectly free of bugs. Unfortunately, bugs do surface from time to
-time, and you may have to fetch updates. We will provide further instructions
-via a post on Piazza whenever fetching updates is necessary.
-
-## Setting up your local development environment
-
-You are free to use any text editor or IDE to complete the assignments, but **we
-will build and test your code in a docker container with Maven**.
-
-We recommend setting up a local development environment by installing Java
-8 locally (the version our Docker container runs) and using an IDE such as
-IntelliJ.
-
-[Java 8 downloads](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html)
-
-If you have another version of Java installed, it's probably fine to use it, as
-long as you do not use any features not in Java 8. You should run tests
-somewhat frequently inside the container to make sure that your code works with
-our setup.
-
-To import the project into IntelliJ, make sure that you import as a Maven
-project (select the pom.xml file when importing). Make sure that you can compile
-your code and run tests (it's ok if there are a lot of failed tests - you
-haven't begun implementing anything yet!). You should also make sure that you
-can run the debugger and step through code.
-
-## Running tests in IntelliJ
-
-If you are using IntelliJ, and wish to run the tests for a given assignment
-follow the instructions in the following document:
-
-[IntelliJ setup](intellij-test-setup.md)
-
-## Submitting assignments
-
-To submit a project, navigate to the cloned repo, and use
-`git push` to push all of your changes to the remote GitHub repository created
-by GitHub Classroom. Then, go to Gradescope class and click on the
-project to which you want to submit your code. Select GitHub for the submission
-method (if it hasn't been selected already), and select the repository and branch
-with the code you want to upload and submit. If you have not done this before,
-then you will have to link your GitHub account to Gradescope using the "Connect
-to GitHub" button. If you are unable to find the appropriate repository, then you
-might need to go to https://github.com/settings/applications, click Gradescope,
-and grant access to the `berkeley-cs186-student` organization.
-
-Note that you are only allowed to modify certain files for each assignment, and
-changes to other files you are not allowed to modify will be discarded when we
-run tests.
-
-## The code
-
-As you will be working with this codebase for the rest of the semester, it is a good idea to get familiar with it. The code is located in the `src/main/java/edu/berkeley/cs186/database` directory, while the tests are located in the `src/test/java/edu/berkeley/cs186/database directory`. The following is a brief overview of each of the major sections of the codebase.
+Specs for each of the projects will be released throughout the semester at
+here: [https://cs186.gitbook.io/project/](https://cs186.gitbook.io/project/)
 
 ### cli
 
-The cli directory contains all the logic for the database's command line interface. Running the main method of CommandLineInterface.java will create an instance of the database and create a simple text interface that you can send and review the results of queries in. **The inner workings of this section are beyond the scope of the class** (although you're free to look around), you'll just need to know how to run the Command Line Interface.
+The cli directory contains all the logic for the database's command line interface. Running the main method of
+CommandLineInterface.java will create an instance of the database and create a simple text interface that you can send
+and review the results of queries in. **The inner workings of this section are beyond the scope of the class** (although
+you're free to look around), you'll just need to know how to run the Command Line Interface.
 
 #### cli/parser
 
-The subdirectory cli/parser contains a lot of scary looking code! Don't be intimidated, this is all generated automatically from the file RookieParser.jjt in the root directory of the repo. The code here handles the logic to convert from user inputted queries (strings) into a tree of nodes representing the query (parse tree).
+The subdirectory cli/parser contains a lot of scary looking code! Don't be intimidated, this is all generated
+automatically from the file RookieParser.jjt in the root directory of the repo. The code here handles the logic to
+convert from user inputted queries (strings) into a tree of nodes representing the query (parse tree).
 
 #### cli/visitor
 
-The subdirectory cli/visitor contains classes that help traverse the trees created from the parser and create objects that the database can work with directly.
+The subdirectory cli/visitor contains classes that help traverse the trees created from the parser and create objects
+that the database can work with directly.
 
 ### common
 
@@ -119,12 +49,13 @@ values of certain types, whereas the `Type` class represents types used in the
 database.
 
 An example:
+
 ```java
-DataBox x = new IntDataBox(42); // The integer value '42'.
-Type t = Type.intType();        // The type 'int'.
-Type xsType = x.type();         // Get x's type, which is Type.intType().
-int y = x.getInt();             // Get x's value: 42.
-String s = x.getString();       // An exception is thrown, since x is not a string.
+DataBox x=new IntDataBox(42); // The integer value '42'.
+        Type t=Type.intType();        // The type 'int'.
+        Type xsType=x.type();         // Get x's type, which is Type.intType().
+        int y=x.getInt();             // Get x's value: 42.
+        String s=x.getString();       // An exception is thrown, since x is not a string.
 ```
 
 ### index
@@ -205,7 +136,6 @@ made up of multiple DataBoxes (one for each column of the table it belongs to).
 
 The `RecordId` class identifies a single record in a table.
 
-
 The `PageDirectory` class is an implementation of a heap file that uses a page directory.
 
 #### table/stats
@@ -245,34 +175,35 @@ a transaction with `Database#beginTransaction`, then call some of
 `Transaction`'s numerous methods to perform selects, inserts, and updates.
 
 For example:
+
 ```java
-Database db = new Database("database-dir");
+Database db=new Database("database-dir");
 
-try (Transaction t1 = db.beginTransaction()) {
-    Schema s = new Schema()
-            .add("id", Type.intType())
-            .add("firstName", Type.stringType(10))
-            .add("lastName", Type.stringType(10));
+        try(Transaction t1=db.beginTransaction()){
+        Schema s=new Schema()
+        .add("id",Type.intType())
+        .add("firstName",Type.stringType(10))
+        .add("lastName",Type.stringType(10));
 
-    t1.createTable(s, "table1");
+        t1.createTable(s,"table1");
 
-    t1.insert("table1", 1, "Jane", "Doe");
-    t1.insert("table1", 2, "John", "Doe");
+        t1.insert("table1",1,"Jane","Doe");
+        t1.insert("table1",2,"John","Doe");
 
-    t1.commit();
-}
+        t1.commit();
+        }
 
-try (Transaction t2 = db.beginTransaction()) {
-    // .query("table1") is how you run "SELECT * FROM table1"
-    Iterator<Record> iter = t2.query("table1").execute();
+        try(Transaction t2=db.beginTransaction()){
+        // .query("table1") is how you run "SELECT * FROM table1"
+        Iterator<Record> iter=t2.query("table1").execute();
 
-    System.out.println(iter.next()); // prints [1, John, Doe]
-    System.out.println(iter.next()); // prints [2, Jane, Doe]
+        System.out.println(iter.next()); // prints [1, John, Doe]
+        System.out.println(iter.next()); // prints [2, Jane, Doe]
 
-    t2.commit();
-}
+        t2.commit();
+        }
 
-db.close();
+        db.close();
 ```
 
 More complex queries can be found in

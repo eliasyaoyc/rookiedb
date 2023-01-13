@@ -25,3 +25,5 @@ target/*
 hw*.zip
 *.zip
 demo/*
+.lock
+.idea
