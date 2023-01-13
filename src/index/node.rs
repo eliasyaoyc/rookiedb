@@ -1,5 +1,4 @@
-pub enum BPlusNode {
+pub enum TreeNode {
     InnerNode,
     LeafNode,
 }
-
