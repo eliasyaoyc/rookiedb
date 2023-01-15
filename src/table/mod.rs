@@ -1,14 +1,15 @@
+mod page;
+mod record;
+mod schema;
+mod stats;
+
 use std::fmt::Debug;
 
 use anyhow::Result;
 
-use self::page_directory::PageDirectory;
+use self::page::PageDirectory;
 use self::schema::Schema;
 use self::stats::TableStats;
-mod page_directory;
-mod record;
-mod schema;
-mod stats;
 
 /// A Table represents a database table with which users can insert, get,
 /// update and delete records.
@@ -77,7 +78,6 @@ impl Debug for Table {
         f.debug_struct("Table")
             .field("name", &self.table_name)
             .field("schema", &self.schema)
-            .field("page_dir", &self.page_dir)
             .field("bitmap_size", &self.bitmap_size)
             .field("num_records_per_page", &self.num_records_per_page)
             .finish()

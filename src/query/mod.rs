@@ -1,4 +1,5 @@
+mod executor;
+mod optimizer;
 pub mod parser;
 mod planner;
-mod optimizer;
-mod executor;
+pub mod server;

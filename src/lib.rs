@@ -1,7 +1,9 @@
 #[allow(dead_code)]
+pub(crate) mod common;
+mod datatypes;
 mod index;
 mod memory;
-pub mod query;
+pub(crate) mod query;
 mod table;
 
 pub fn add(left: usize, right: usize) -> usize {
