@@ -13,7 +13,7 @@ use crate::{
     catalog::schema::Schema,
     datatypes::record::{Record, RecordId},
     error::Result,
-    page::group::PageGroup,
+    page::manager::PageManager,
 };
 
 /// A Table represents a database table with which users can insert, get,
@@ -73,7 +73,7 @@ pub struct Table {
     /// The schema of the table.
     schema: Schema,
     /// The page group of the table.
-    page_group: PageGroup,
+    page_manager: PageManager,
     /// The size of the bitmap found at the beginning of each data page.
     bitmap_size: usize,
     /// The number of records on each data page.
@@ -88,7 +88,7 @@ impl Table {
         Table {
             guard: RwLock::default(),
             schema,
-            page_group: todo!(),
+            page_manager: todo!(),
             bitmap_size: todo!(),
             num_records_per_page: todo!(),
             stats: todo!(),
@@ -106,7 +106,7 @@ impl Table {
     pub fn set_full_page_records(&mut self) {
         self.num_records_per_page = 1;
         self.bitmap_size = 0;
-        self.page_group
+        self.page_manager
             .set_empty_page_metadata_size(self.schema.estimated_size());
     }
 
@@ -115,7 +115,7 @@ impl Table {
     }
 
     pub fn get_part_num(&self) -> usize {
-        self.page_group.part_num()
+        self.page_manager.part_num()
     }
 
     /// Insert a record to this table and returns the record id of the newly
@@ -129,7 +129,7 @@ impl Table {
         // Verify that the record whether valid. For example field value or field type.
         let schema = &self.schema;
         let record = schema.verify_record(record)?;
-        let page = self.page_group.get_page_with_space(schema.estimated_size());
+        let page = self.page_manager.get_page_with_space(schema.estimated_size());
 
         // Find the first empty slot in the bitmap.
         // entry number of the first free slot and store it in entry number;

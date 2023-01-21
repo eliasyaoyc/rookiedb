@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-#[allow(dead_code)]
 mod catalog;
 mod database;
 mod datatypes;

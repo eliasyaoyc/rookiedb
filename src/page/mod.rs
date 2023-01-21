@@ -2,7 +2,7 @@ use std::ptr::NonNull;
 
 pub(crate) mod error;
 pub(crate) mod file;
-pub(crate) mod group;
+pub(crate) mod manager;
 pub(crate) mod iter;
 
 /// Page represents a page loaded in memory (as opposed to the buffer frame it's

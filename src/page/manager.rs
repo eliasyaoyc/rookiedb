@@ -26,7 +26,7 @@ const RESERVED_SIZE: usize = 36;
 
 /// An implementation of a heap file, using a page group. Assumes data pages
 /// are packed (but record lengths do not need to be fixed-length).
-pub struct PageGroup {
+pub struct PageManager {
     guard: Mutex<()>,
 
     /// The page group id.
@@ -47,7 +47,7 @@ pub struct PageGroup {
 }
 
 /// private methods.
-impl PageGroup {
+impl PageManager {
     /// Returns the number of data page entries in a header page.
     #[inline]
     fn header_entry_count(&self) -> usize {
@@ -65,14 +65,14 @@ impl PageGroup {
     }
 }
 
-impl PageGroup {
+impl PageManager {
     pub fn new(
         page_writer: PageWriter,
         part_num: usize,
         page_num: usize,
         empty_page_metadata_size: usize,
     ) -> Self {
-        PageGroup {
+        PageManager {
             guard: Mutex::default(),
             page_group_id: 0,
             page_writer,
