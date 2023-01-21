@@ -1,17 +1,16 @@
-mod page;
-mod record;
-mod schema;
+mod cache;
 mod stats;
 
 use std::fmt::Debug;
 
-use anyhow::Result;
+use parking_lot::RwLock;
 
-use self::{
-    page::PageDirectory,
-    record::{Record, RecordId},
-    schema::Schema,
-    stats::TableStats,
+use self::stats::TableStats;
+use crate::{
+    catalog::schema::Schema,
+    datatypes::record::{Record, RecordId},
+    error::Result,
+    page::group::PageGroup,
 };
 
 /// A Table represents a database table with which users can insert, get,
@@ -66,36 +65,31 @@ use self::{
 /// page record may be desirable), and may be explicitly toggled on with the
 /// `set_full_page_records` methods.
 pub struct Table {
-    /// The name of the table.
-    table_name: String,
+    guard: RwLock<()>,
+
     /// The schema of the table.
     schema: Schema,
-    /// The page directory of the table.
-    page_dir: PageDirectory,
+    /// The page group of the table.
+    page_group: PageGroup,
     /// The size of the bitmap found at the beginning of each data page.
     bitmap_size: usize,
     /// The number of records on each data page.
     num_records_per_page: usize,
     /// Statistics about the contents of the database.
     stats: TableStats,
-    // todo lock?
-}
-
-impl Debug for Table {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Table")
-            .field("name", &self.table_name)
-            .field("schema", &self.schema)
-            .field("bitmap_size", &self.bitmap_size)
-            .field("num_records_per_page", &self.num_records_per_page)
-            .finish()
-    }
 }
 
 impl Table {
     /// Create a new table.
-    pub fn new(table_name: &str) -> Self {
-        todo!()
+    pub fn new(schema: Schema) -> Self {
+        Table {
+            guard: RwLock::default(),
+            schema,
+            page_group: todo!(),
+            bitmap_size: todo!(),
+            num_records_per_page: todo!(),
+            stats: todo!(),
+        }
     }
 
     pub fn schema(&self) -> &Schema {
@@ -109,17 +103,16 @@ impl Table {
     pub fn set_full_page_records(&mut self) {
         self.num_records_per_page = 1;
         self.bitmap_size = 0;
-        self.page_dir
-            .set_empty_page_metadata_size(self.schema.size());
+        self.page_group
+            .set_empty_page_metadata_size(self.schema.estimated_size());
     }
 
-    // todo(consider): move to outer struct, e.g. database or other.
     pub fn statistics(&self) -> &TableStats {
         &self.stats
     }
 
     pub fn get_part_num(&self) -> usize {
-        self.page_dir.part_num()
+        self.page_group.part_num()
     }
 
     /// Insert a record to this table and returns the record id of the newly
@@ -133,7 +126,7 @@ impl Table {
         // Verify that the record whether valid. For example field value or field type.
         let schema = &self.schema;
         let record = schema.verify_record(record)?;
-        let page = self.page_dir.get_page_with_space(schema.size());
+        let page = self.page_group.get_page_with_space(schema.estimated_size());
 
         // Find the first empty slot in the bitmap.
         // entry number of the first free slot and store it in entry number;

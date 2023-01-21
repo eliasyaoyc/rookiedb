@@ -1,11 +1,14 @@
 #[allow(dead_code)]
-mod concurrency;
 mod datatypes;
+pub mod error;
 mod index;
 mod memory;
+mod page;
 pub(crate) mod query;
 mod table;
 mod utils;
+mod database;
+mod catalog;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
