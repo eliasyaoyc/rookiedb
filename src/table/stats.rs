@@ -1,3 +1,3 @@
-pub struct TableStats {
+mod histogram;
 
-}
+pub struct TableStats {}

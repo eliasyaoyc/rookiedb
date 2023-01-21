@@ -1,10 +1,10 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::collections::HashMap;
 
 use crate::{
     catalog::schema::Schema,
     datatypes::record::{Record, RecordId},
     error::{Error, Result},
-    table::{recovery::Recovery, Table},
+    table::Table,
     Options,
 };
 
@@ -16,8 +16,6 @@ pub struct Database {
 
 impl Database {
     pub fn open(options: Options) -> Self {
-        // recovery from path, if has datanase related files.
-        let handle = Recovery::new(Arc::new(options));
         todo!()
     }
 

@@ -1,1 +1,1 @@
-mod lru;
+pub(crate) mod lru;
