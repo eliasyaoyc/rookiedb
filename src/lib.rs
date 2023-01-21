@@ -4,7 +4,6 @@ mod catalog;
 mod database;
 mod datatypes;
 pub mod error;
-mod page;
 pub(crate) mod query;
 mod table;
 mod utils;

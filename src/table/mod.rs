@@ -3,17 +3,17 @@ mod cleanup;
 mod flush;
 mod index;
 mod manifest;
+pub(crate) mod page;
 pub(crate) mod recover;
 mod stats;
 
 use parking_lot::RwLock;
 
-use self::stats::TableStats;
+use self::{page::manager::PageManager, stats::TableStats};
 use crate::{
     catalog::schema::Schema,
     datatypes::record::{Record, RecordId},
     error::Result,
-    page::manager::PageManager,
 };
 
 /// A Table represents a database table with which users can insert, get,
@@ -129,7 +129,9 @@ impl Table {
         // Verify that the record whether valid. For example field value or field type.
         let schema = &self.schema;
         let record = schema.verify_record(record)?;
-        let page = self.page_manager.get_page_with_space(schema.estimated_size());
+        let page = self
+            .page_manager
+            .get_page_with_space(schema.estimated_size());
 
         // Find the first empty slot in the bitmap.
         // entry number of the first free slot and store it in entry number;
