@@ -27,3 +27,4 @@ hw*.zip
 demo/*
 .lock
 .idea
+Cargo.lock
