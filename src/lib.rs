@@ -1,26 +1,27 @@
+use std::fmt::Debug;
+
 #[allow(dead_code)]
+mod catalog;
+mod database;
 mod datatypes;
 pub mod error;
-mod index;
-mod memory;
 mod page;
 pub(crate) mod query;
 mod table;
 mod utils;
-mod database;
-mod catalog;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+pub struct Options {
+    path: String,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl Default for Options {
+    fn default() -> Self {
+        Self { path: todo!() }
+    }
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl Debug for Options {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Options").finish()
     }
 }

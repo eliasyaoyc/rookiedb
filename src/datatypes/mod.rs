@@ -1,2 +1,4 @@
+pub(crate) mod batch;
+pub(crate) mod chunk;
 mod macros;
-pub mod record;
+pub(crate) mod record;

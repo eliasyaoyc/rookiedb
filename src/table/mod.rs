@@ -1,7 +1,7 @@
 mod cache;
+mod index;
+pub(crate) mod recovery;
 mod stats;
-
-use std::fmt::Debug;
 
 use parking_lot::RwLock;
 
