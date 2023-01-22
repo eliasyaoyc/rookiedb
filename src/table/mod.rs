@@ -7,6 +7,7 @@ pub(crate) mod page;
 pub(crate) mod recover;
 mod stats;
 
+use bitmaps::Bitmap;
 use parking_lot::RwLock;
 
 use self::{page::manager::PageManager, stats::TableStats};
@@ -14,6 +15,7 @@ use crate::{
     catalog::schema::Schema,
     datatypes::record::{Record, RecordId},
     error::Result,
+    utils::fs,
 };
 
 /// A Table represents a database table with which users can insert, get,
@@ -70,29 +72,44 @@ use crate::{
 pub struct Table {
     guard: RwLock<()>,
 
+    /// The table dir.
+    table_dir: String,
+
     /// The schema of the table.
     schema: Schema,
+
     /// The page group of the table.
     page_manager: PageManager,
-    /// The size of the bitmap found at the beginning of each data page.
-    bitmap_size: usize,
+
     /// The number of records on each data page.
     num_records_per_page: usize,
+
     /// Statistics about the contents of the database.
-    stats: TableStats,
+    table_stats: TableStats,
 }
 
 impl Table {
     /// Create a new table.
-    pub fn new(schema: Schema) -> Self {
-        Table {
+    pub async fn create(
+        schema: Schema,
+        table_dir: String,
+        num_records_per_page: usize,
+    ) -> Result<Self> {
+        fs::create_dir(&table_dir).await?;
+
+        let page_manager = PageManager::new(0);
+
+        // todo enable cleanup and flush job.
+
+        let table = Table {
             guard: RwLock::default(),
             schema,
-            page_manager: todo!(),
-            bitmap_size: todo!(),
-            num_records_per_page: todo!(),
-            stats: todo!(),
-        }
+            page_manager,
+            num_records_per_page,
+            table_stats: TableStats::new(),
+            table_dir,
+        };
+        Ok(table)
     }
 
     pub fn schema(&self) -> &Schema {
@@ -103,15 +120,15 @@ impl Table {
         self.num_records_per_page
     }
 
-    pub fn set_full_page_records(&mut self) {
-        self.num_records_per_page = 1;
-        self.bitmap_size = 0;
-        self.page_manager
-            .set_empty_page_metadata_size(self.schema.estimated_size());
-    }
+    // pub fn set_full_page_records(&mut self) {
+    //     self.num_records_per_page = 1;
+    //     self.bitmap_size = 0;
+    //     self.page_manager
+    //         .set_empty_page_metadata_size(self.schema.estimated_size());
+    // }
 
     pub fn statistics(&self) -> &TableStats {
-        &self.stats
+        &&self.table_stats
     }
 
     pub fn get_part_num(&self) -> usize {

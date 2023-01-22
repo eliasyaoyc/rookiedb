@@ -10,11 +10,15 @@ mod utils;
 
 pub struct Options {
     path: String,
+    num_records_per_page: usize,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { path: todo!() }
+        Self {
+            path: todo!(),
+            num_records_per_page: todo!(),
+        }
     }
 }
 

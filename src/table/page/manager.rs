@@ -29,8 +29,8 @@ const RESERVED_SIZE: usize = 36;
 pub struct PageManager {
     guard: Mutex<()>,
 
-    /// The page group id.
-    page_group_id: u32,
+    /// The page manager id.
+    page_manager_id: u32,
 
     /// The page writer.
     page_writer: PageWriter,
@@ -66,19 +66,19 @@ impl PageManager {
 }
 
 impl PageManager {
-    pub fn new(
-        page_writer: PageWriter,
-        part_num: usize,
-        page_num: usize,
-        empty_page_metadata_size: usize,
-    ) -> Self {
+    /// PartNum: partition to allocate new header pages in (can be different
+    /// partition  from data pages)
+    /// - 0 represent table dir, such as header/data page.
+    /// - 1 represent table metadata
+    /// - 2 represent table indices
+    pub fn new(part_num: usize) -> Self {
         PageManager {
             guard: Mutex::default(),
-            page_group_id: 0,
-            page_writer,
+            page_manager_id: 0,
+            page_writer: PageWriter::new(),
             part_num,
-            empty_page_metadata_size,
-            page: HeaderPage::new(page_num, 0, true),
+            empty_page_metadata_size: 0,
+            page: HeaderPage::new(0, 0, true),
         }
     }
 

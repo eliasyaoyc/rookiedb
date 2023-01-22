@@ -1,7 +1,11 @@
 use thiserror::Error;
 
+use crate::table::page::error;
+
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("{0}")]
+    IO(#[from] std::io::Error),
     #[error("corrupted {0}.")]
     Corrupted(String),
     #[error("invalid {0}.")]

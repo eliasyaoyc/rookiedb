@@ -1,17 +1,11 @@
-use async_fs::File;
-use futures_lite::io::AsyncWriteExt;
-
 pub struct PageWriter {}
 
 impl PageWriter {
-    pub fn new(capacity: usize) -> PageWriter {
+    pub fn new() -> PageWriter {
         Self {}
     }
 
     pub async fn flush() -> std::io::Result<()> {
-        let mut file = File::create("a.txt").await?;
-        file.write_all(b"Hello, world!").await?;
-        file.flush().await?;
         todo!()
     }
 }
