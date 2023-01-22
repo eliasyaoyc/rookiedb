@@ -4,13 +4,13 @@ mod flush;
 mod index;
 mod manifest;
 pub(crate) mod page;
+mod page_manager;
 pub(crate) mod recover;
 mod stats;
 
-use bitmaps::Bitmap;
 use parking_lot::RwLock;
 
-use self::{page::manager::PageManager, stats::TableStats};
+use self::{page_manager::PageManager, stats::TableStats};
 use crate::{
     catalog::schema::Schema,
     datatypes::record::{Record, RecordId},
@@ -72,9 +72,6 @@ use crate::{
 pub struct Table {
     guard: RwLock<()>,
 
-    /// The table dir.
-    table_dir: String,
-
     /// The schema of the table.
     schema: Schema,
 
@@ -97,7 +94,7 @@ impl Table {
     ) -> Result<Self> {
         fs::create_dir(&table_dir).await?;
 
-        let page_manager = PageManager::new(0);
+        let page_manager = PageManager::new(0, table_dir.clone());
 
         // todo enable cleanup and flush job.
 
@@ -107,7 +104,6 @@ impl Table {
             page_manager,
             num_records_per_page,
             table_stats: TableStats::new(),
-            table_dir,
         };
         Ok(table)
     }

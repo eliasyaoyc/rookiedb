@@ -17,7 +17,10 @@ pub struct Database {
 
 impl Database {
     pub fn open(options: Options) -> Self {
-        todo!()
+        Self {
+            options,
+            tables: HashMap::new(),
+        }
     }
 
     pub async fn create_table(&mut self, table_name: String, schema: Schema) -> Result<()> {

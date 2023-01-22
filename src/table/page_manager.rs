@@ -1,6 +1,12 @@
+use std::{collections::HashMap, sync::atomic::AtomicUsize};
+
 use parking_lot::Mutex;
 
-use super::{file::writer::PageWriter, HeaderPage};
+use super::{
+    cache::lru::Lru,
+    page::{file::writer::PageWriter, HeaderPage},
+};
+use crate::error::Result;
 
 /// The default size of the page is 4KB.
 const DEFAULT_PAGE_SIZE: usize = 4 * 1024;
@@ -24,13 +30,28 @@ const DATA_ENTRY_SIZE: usize = 10;
 /// record can fit on one page).
 const RESERVED_SIZE: usize = 36;
 
+pub struct PartitionHandle {}
+
+impl PartitionHandle {}
+
 /// An implementation of a heap file, using a page group. Assumes data pages
 /// are packed (but record lengths do not need to be fixed-length).
 pub struct PageManager {
+    // epoch: Epoch,
     guard: Mutex<()>,
+
+    path: String,
+
+    /// Page cache.
+    cache: Lru<HeaderPage>,
 
     /// The page manager id.
     page_manager_id: u32,
+
+    partitions: HashMap<usize, PartitionHandle>,
+
+    /// Counter to generate new partition numbers.
+    partition_counter: AtomicUsize,
 
     /// The page writer.
     page_writer: PageWriter,
@@ -60,29 +81,86 @@ impl PageManager {
         DEFAULT_PAGE_SIZE - RESERVED_SIZE
     }
 
+    #[inline]
     pub(crate) fn set_empty_page_metadata_size(&mut self, empty_page_metadata_size: usize) {
         self.empty_page_metadata_size = self.effective_page_size() - empty_page_metadata_size;
+    }
+
+    async fn flush(&mut self) -> Result<()> {
+        todo!()
     }
 }
 
 impl PageManager {
     /// PartNum: partition to allocate new header pages in (can be different
     /// partition  from data pages)
-    /// - 0 represent table dir, such as header/data page.
-    /// - 1 represent table metadata
-    /// - 2 represent table indices
-    pub fn new(part_num: usize) -> Self {
+    /// - 0 represent redo or undo wal-log.
+    /// - 1 represent table metadata.
+    /// - 2 represent table indices.
+    /// - .. represent table header/data page.
+    pub fn new(part_num: usize, path: String) -> Self {
         PageManager {
-            guard: Mutex::default(),
+            guard: Mutex::new(()),
+            cache: Lru::with_capacity(10),
             page_manager_id: 0,
             page_writer: PageWriter::new(),
             part_num,
             empty_page_metadata_size: 0,
             page: HeaderPage::new(0, 0, true),
+            partitions: HashMap::new(),
+            partition_counter: AtomicUsize::new(0),
+            path,
         }
     }
 
-    pub fn get_page(&self, page_num: usize) -> HeaderPage {
+    pub(crate) async fn alloc_partition(&self, part_num: usize) -> Result<usize> {
+        todo!()
+    }
+
+    pub(crate) async fn free_partition(&self, part_num: usize) -> Result<()> {
+        todo!()
+    }
+
+    pub(crate) async fn alloc_page(&self, page_num: usize) -> Result<usize> {
+        todo!()
+    }
+
+    pub(crate) async fn free_page(&self, page_num: usize) -> Result<()> {
+        todo!()
+    }
+
+    pub(crate) async fn read_page(&self, page_num: usize) -> Result<Vec<u8>> {
+        todo!()
+    }
+
+    pub(crate) async fn read_page_to(&self, page_num: usize, target: &[u8]) -> Result<()> {
+        todo!()
+    }
+
+    pub(crate) async fn write_page(&self, data: &[u8]) -> Result<()> {
+        todo!()
+    }
+
+    pub(crate) async fn is_page_allocated(&self, page_num: usize) -> bool {
+        todo!()
+    }
+
+    pub(crate) fn get_partition(&self, part_num: usize) -> Result<PartitionHandle> {
+        todo!()
+    }
+
+    /// Gets page.
+    pub async fn get_page(&self, page_num: usize) -> HeaderPage {
+        let _guard = self.guard.lock();
+
+        // Return header page if exist in page cache.
+        if let Some(page) = self.cache.get(page_num) {
+            return page;
+        }
+
+        // Read from disk if page file is exist and constructor `HeaderPage`.
+
+        // Create new header page file and constructor `HeaderPage`.
         todo!()
     }
 

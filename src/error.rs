@@ -1,7 +1,5 @@
 use thiserror::Error;
 
-use crate::table::page::error;
-
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("{0}")]

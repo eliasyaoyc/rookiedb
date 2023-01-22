@@ -13,7 +13,7 @@ impl<T> Lru<T> {
         }
     }
 
-    pub fn get(&self) -> Option<T> {
+    pub fn get(&self, page_num: usize) -> Option<T> {
         todo!()
     }
 

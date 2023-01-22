@@ -5,7 +5,7 @@ use crate::error::Result;
 
 impl Table {
     pub(crate) async fn recover<P: AsRef<Path>>(path: P) -> Result<()> {
-        let mut manifest = Manifest::open(path.as_ref()).await?;
+        let mut _manifest = Manifest::open(path.as_ref()).await?;
 
         Ok(())
     }
