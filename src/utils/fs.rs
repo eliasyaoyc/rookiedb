@@ -5,8 +5,13 @@ use futures::TryStreamExt;
 
 use crate::error::Result;
 
-pub(crate) async fn open<P: AsRef<Path>>(path: P) -> Result<File> {
-    Ok(File::open(path).await?)
+pub(crate) async fn open<P: AsRef<Path>>(path: P) -> std::io::Result<File> {
+    Ok(async_fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .truncate(true)
+        .open(path)
+        .await?)
 }
 
 pub(crate) async fn rename<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> {

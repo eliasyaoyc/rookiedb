@@ -1,8 +1,8 @@
 use std::ptr::NonNull;
 
-pub(crate) mod error;
-pub(crate) mod file;
-pub(crate) mod iter;
+use async_fs::File;
+
+pub(crate) struct PageFile(pub(crate) File);
 
 /// Page represents a page loaded in memory (as opposed to the buffer frame it's
 /// in). Wraps around buffer manager frames, and requests the page be loaded

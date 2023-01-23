@@ -176,20 +176,4 @@ impl Table {
 }
 
 #[cfg(test)]
-mod tests {
-    use bitmaps::Bitmap;
-
-    #[test]
-    fn test_bitmap() {
-        let mut bitmap = Bitmap::<10>::new();
-        assert_eq!(bitmap.set(5, true), false);
-        assert_eq!(bitmap.set(5, true), true);
-        assert_eq!(bitmap.get(5), true);
-        assert_eq!(bitmap.get(6), false);
-        assert_eq!(bitmap.len(), 1);
-        assert_eq!(bitmap.set(3, true), false);
-        assert_eq!(bitmap.len(), 2);
-        assert_eq!(bitmap.first_index(), Some(3));
-        assert_eq!(bitmap.last_index(), Some(5));
-    }
-}
+mod tests {}
