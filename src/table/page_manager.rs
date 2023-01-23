@@ -1,4 +1,5 @@
 use std::{
+    alloc::realloc,
     collections::HashMap,
     io::{ErrorKind, SeekFrom},
     sync::atomic::{AtomicUsize, Ordering},
@@ -22,7 +23,9 @@ use crate::{
 /// The default size of the page is 4KB.
 const DEFAULT_PAGE_SIZE: usize = 4 * 1024;
 
-const MAX_HEADER_PAGES: usize = DEFAULT_PAGE_SIZE * 8;
+const MAX_HEADER_PAGES: usize = DEFAULT_PAGE_SIZE / 2;
+
+const DATA_PAGES_PER_HEADER: usize = DEFAULT_PAGE_SIZE * 8;
 
 /// The size of header in header pages.
 /// 1-byte  : check page is valid.
@@ -68,8 +71,8 @@ impl PartitionHandle {
             }
         };
 
-        let mut master_page = Vec::with_capacity(DEFAULT_PAGE_SIZE / 2);
-        let mut header_page = Vec::with_capacity(MAX_HEADER_PAGES);
+        let mut master_page = Vec::with_capacity(MAX_HEADER_PAGES);
+        let mut header_page = Vec::with_capacity(DATA_PAGES_PER_HEADER);
 
         let page_len = page_file.0.metadata().await?.len();
         if page_len == 0 {
@@ -112,7 +115,7 @@ impl PartitionHandle {
     /// we put 1bit of bitmap as 2bits.
     async fn write_master_page(file: &mut File, master_page: &Vec<u16>) -> Result<()> {
         let mut page_buf = vec![0u8; DEFAULT_PAGE_SIZE];
-        for index in 0..DEFAULT_PAGE_SIZE / 2 {
+        for index in 0..MAX_HEADER_PAGES {
             let v = master_page[index];
             page_buf.put_u16(v);
         }
@@ -134,7 +137,7 @@ impl PartitionHandle {
         // the master page, and then take the header index times the number
         // of data pages per header plus 1 to account for the header page
         // itself (in the above example this coefficient would be 5)
-        let spacing_coeoff = MAX_HEADER_PAGES + 1;
+        let spacing_coeoff = DATA_PAGES_PER_HEADER + 1;
         ((1 + header_index * spacing_coeoff) * DEFAULT_PAGE_SIZE) as u64
     }
 
@@ -151,8 +154,34 @@ impl PartitionHandle {
         //   dividing page num by data pages per header)
         // - add how many data pages precede the given data page (this works out
         //   conveniently to the page's page number)
-        let other_headers = page_num / MAX_HEADER_PAGES;
+        let other_headers = page_num / DATA_PAGES_PER_HEADER;
         ((2 + other_headers + page_num) * DEFAULT_PAGE_SIZE) as u64
+    }
+
+    /// Release all pages from partition for use.
+    async fn release(&self) -> Result<()> {
+        let idxs = self
+            .master_page
+            .iter()
+            .copied()
+            .filter(|&v| v != 0)
+            .map(|v| v as usize)
+            .collect::<Vec<_>>();
+
+        for idx in idxs {
+            self.header_page[idx]
+                .iter()
+                .filter(|&&v| v != 0u8)
+                .for_each(|&v| {
+                    self.release_page(idx * DATA_PAGES_PER_HEADER + (v as usize))
+                        .unwrap();
+                });
+        }
+        Ok(())
+    }
+
+    fn release_page(&self, page_num: usize) -> Result<()> {
+        todo!()
     }
 }
 
@@ -271,8 +300,22 @@ impl PageManager {
     }
 
     /// Release a partition from use.
-    pub(crate) async fn free_part(&self, part_num: usize) -> Result<()> {
-        todo!()
+    pub(crate) async fn release_part(&mut self, part_num: usize) -> Result<()> {
+        let _guard = self.guard.lock();
+
+        let part = self
+            .partitions
+            .remove(&part_num)
+            .ok_or(Error::NotFound(format!(
+                "release partitiion {} failed",
+                part_num
+            )))?;
+
+        part.release().await?;
+
+        fs::remove_file("path").await?;
+
+        Ok(())
     }
 
     /// Allocates a new page, Return virtual page number of new page.
@@ -281,7 +324,7 @@ impl PageManager {
     }
 
     /// Release a page from use.
-    pub(crate) async fn free_page(&self, page_num: usize) -> Result<()> {
+    pub(crate) async fn release_page(&self, page_num: usize) -> Result<()> {
         todo!()
     }
 
