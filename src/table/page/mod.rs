@@ -1,8 +1,54 @@
-use std::ptr::NonNull;
+use std::{io::SeekFrom, ptr::NonNull};
 
 use async_fs::File;
+use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
+use crate::error::Result;
 
 pub(crate) struct PageFile(pub(crate) File);
+
+impl PageFile {
+    #[inline]
+    pub(crate) async fn read(&mut self, ouput: &mut [u8]) -> Result<()> {
+        self.0.read(ouput).await?;
+        self.0.seek(SeekFrom::Start(0)).await?;
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) async fn read_from(&mut self, offset: u64, ouput: &mut [u8]) -> Result<()> {
+        self.0.seek(SeekFrom::Start(offset)).await?;
+        self.0.read(ouput).await?;
+        self.0.seek(SeekFrom::Start(0)).await?;
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) async fn write_to(&mut self, offset: u64, buf: &[u8]) -> Result<()> {
+        self.0.seek(SeekFrom::Start(offset)).await?;
+        self.0.write(buf).await?;
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) async fn write_to_f<F>(&mut self, offset: u64, f: F) -> Result<()>
+    where
+        F: FnOnce() -> Vec<u8>,
+    {
+        self.0.seek(SeekFrom::Start(offset)).await?;
+        self.0.write(&f()).await?;
+        Ok(())
+    }
+
+    #[inline]
+    pub(crate) async fn write_f<F>(&mut self, f: F) -> Result<()>
+    where
+        F: FnOnce() -> Vec<u8>,
+    {
+        self.0.write(&f()).await?;
+        Ok(())
+    }
+}
 
 /// Page represents a page loaded in memory (as opposed to the buffer frame it's
 /// in). Wraps around buffer manager frames, and requests the page be loaded

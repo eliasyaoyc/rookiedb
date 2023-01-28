@@ -1,10 +1,9 @@
+mod bg;
 mod cache;
-mod cleanup;
-mod flush;
 mod index;
+mod page_manager;
 mod manifest;
 pub(crate) mod page;
-mod page_manager;
 pub(crate) mod recover;
 mod stats;
 

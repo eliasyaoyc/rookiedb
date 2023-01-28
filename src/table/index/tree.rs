@@ -1,5 +1,3 @@
-
-
 /// A B+ tree builder.
 ///
 /// # Example
@@ -36,7 +34,7 @@ impl Tree {
         todo!()
     }
 
-    pub fn put(&self) -> Option<()> {
+    pub fn insert(&self) -> Option<()> {
         todo!()
     }
 

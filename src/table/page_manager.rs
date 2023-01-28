@@ -1,14 +1,11 @@
 use std::{
-    alloc::realloc,
     collections::HashMap,
-    io::{ErrorKind, SeekFrom},
+    io::ErrorKind,
     sync::atomic::{AtomicUsize, Ordering},
-    usize,
+    usize, vec,
 };
 
-use async_fs::File;
 use bytes::BufMut;
-use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use parking_lot::Mutex;
 
 use super::{
@@ -17,7 +14,7 @@ use super::{
 };
 use crate::{
     error::{Error, Result},
-    utils::fs,
+    utils::{bitmap::Bitmap, fs},
 };
 
 /// The default size of the page is 4KB.
@@ -47,141 +44,241 @@ const DATA_ENTRY_SIZE: usize = 10;
 const RESERVED_SIZE: usize = 36;
 
 pub struct PartitionHandle {
-    part_id: usize,
+    part_num: usize,
 
     page_file: PageFile,
 
-    master_page: Vec<u16>,
+    /// The bitmap of master page.
+    m_bitmap: Bitmap,
 
-    header_page: Vec<Vec<u8>>,
+    /// The bitmap of header page.
+    h_bitmaps: Vec<Bitmap>,
 }
 
 impl PartitionHandle {
-    async fn create(part_id: usize) -> Result<Self> {
+    /// Opens the OS file and loads master and header pages.
+    async fn open(part_num: usize, root: &str) -> Result<Self> {
+        let part_name = format!("{}.{}", root, part_num);
         // Open the os file and loads master and header pages.
-        let mut page_file = match fs::open("").await {
+        let mut page_file = match fs::open(&part_name).await {
             Ok(file) => PageFile(file),
             Err(error) => {
                 if ErrorKind::NotFound == error.kind() {
                     // File not exist and create new file.
-                    PageFile(fs::create_file("").await?)
+                    PageFile(fs::create_file(part_name).await?)
                 } else {
                     return Err(Error::IO(error));
                 }
             }
         };
 
-        let mut master_page = Vec::with_capacity(MAX_HEADER_PAGES);
-        let mut header_page = Vec::with_capacity(DATA_PAGES_PER_HEADER);
+        let mut header_pages = Vec::with_capacity(MAX_HEADER_PAGES);
+
+        let mut m_bitmap = Bitmap::new(MAX_HEADER_PAGES as u32);
 
         let page_len = page_file.0.metadata().await?.len();
         if page_len == 0 {
             // New file, write empty master page.
-            Self::write_master_page(&mut page_file.0, &master_page).await?;
+            page_file
+                .write_f(|| Self::write_master_page(&m_bitmap))
+                .await?;
         } else {
-            let page = &mut page_file.0;
             // Old file, read in master page and header pages.
-            let mut master_page_buf = vec![0u8; DEFAULT_PAGE_SIZE];
-            page.read(&mut master_page_buf).await?;
+            let mut m_buf = vec![0u8; DEFAULT_PAGE_SIZE];
+            page_file.read(&mut m_buf).await?;
 
-            for (i, bits) in master_page_buf
-                .splitn(2, |v| v.is_ascii_digit())
-                .enumerate()
-            {
+            for (index, bits) in m_buf.splitn(2, |v| v.is_ascii_digit()).enumerate() {
                 // fill master page.
-                let v = u16::from_be_bytes([bits[0], bits[1]]);
-                master_page.insert(i, v);
+                if u16::from_be_bytes([bits[0], bits[1]]) == 1 {
+                    m_bitmap.set(index as u32);
 
-                // fill header page.
-                let offset = Self::virtual_header_page_offset(i);
-                if offset < page_len {
-                    let mut header_page_buf = vec![0u8; DEFAULT_PAGE_SIZE];
-                    page.seek(SeekFrom::Current(offset as i64)).await?;
-                    page.read(&mut header_page_buf).await?;
-                    header_page.insert(i, header_page_buf);
+                    // fill header page.
+                    let offset = virtual_header_page_offset(index);
+                    if offset < page_len {
+                        let mut h_buf = vec![0u8; DEFAULT_PAGE_SIZE];
+                        page_file.read_from(offset, &mut h_buf).await?;
+                        header_pages.insert(index, h_buf);
+                    }
                 }
             }
         }
 
         Ok(PartitionHandle {
-            part_id,
-            master_page,
-            header_page,
+            part_num,
             page_file,
+            m_bitmap,
+            h_bitmaps: Vec::with_capacity(DATA_PAGES_PER_HEADER),
         })
+    }
+
+    /// Allocates a new page in the partition.
+    async fn alloc_page(&mut self) -> Result<usize> {
+        match self.m_bitmap.vacance() {
+            None => Err(Error::Corrupted(
+                "partition has reached max size.".to_owned(),
+            )),
+            Some(h) => match self.h_bitmaps[h as usize].vacance() {
+                None => Err(Error::Corrupted(
+                    "header page not has free space.".to_owned(),
+                )),
+                Some(p) => self.alloc_page_with_index(h as usize, p as usize).await,
+            },
+        }
+    }
+
+    async fn alloc_page_with_index(
+        &mut self,
+        header_index: usize,
+        page_index: usize,
+    ) -> Result<usize> {
+        if self.h_bitmaps[header_index].exist(page_index as u32) {
+            return Err(Error::Corrupted(format!(
+                "page {} in header {} already allocated.",
+                header_index, page_index
+            )));
+        }
+        self.h_bitmaps[header_index].set(page_index as u32);
+        self.m_bitmap.set(header_index as u32);
+
+        let page_num = page_index + header_index * DATA_PAGES_PER_HEADER;
+
+        let _vpn = virtual_page_num(self.part_num, page_num);
+
+        self.page_file
+            .write_to_f(0, || Self::write_master_page(&self.m_bitmap))
+            .await?;
+        self.page_file
+            .write_to_f(virtual_header_page_offset(header_index), || {
+                Self::write_header_page(&self.h_bitmaps[header_index])
+            })
+            .await?;
+        Ok(page_num)
+    }
+
+    /// Release all data pages from partition for use.
+    async fn release_data_pages(&mut self) -> Result<()> {
+        let mut needs_freed_page_idx = vec![];
+        let mut needs_freed_header_idx = vec![];
+        for h in self.m_bitmap.iter() {
+            for d in self.h_bitmaps[h as usize].iter() {
+                needs_freed_page_idx.push(h as usize * DATA_PAGES_PER_HEADER + d as usize);
+            }
+            needs_freed_header_idx.push(h);
+        }
+
+        for idx in needs_freed_page_idx {
+            self.release_page(idx).await?;
+        }
+
+        for idx in needs_freed_header_idx {
+            self.m_bitmap.clear(idx);
+        }
+
+        Ok(())
+    }
+
+    /// Releases a page in partition from use.
+    async fn release_page(&mut self, page_num: usize) -> Result<()> {
+        let (header_index, page_index) = (
+            (page_num / DATA_PAGES_PER_HEADER),
+            (page_num % DATA_PAGES_PER_HEADER),
+        );
+
+        assert!(
+            self.h_bitmaps[header_index].exist(page_index as u32),
+            "can't release unallocated page."
+        );
+
+        let _vpn = virtual_page_num(self.part_num, page_num);
+
+        // todo txn.
+
+        // clear data page.
+        self.write_page(page_num, &vec![0u8; DEFAULT_PAGE_SIZE])
+            .await?;
+
+        self.h_bitmaps[header_index].clear(page_index as u32);
+
+        self.page_file
+            .write_to_f(0, || Self::write_master_page(&self.m_bitmap))
+            .await?;
+        self.page_file
+            .write_to_f(virtual_header_page_offset(header_index), || {
+                Self::write_header_page(&self.h_bitmaps[header_index])
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// Reads in a data page. Assumes that the partition lock is held.
+    async fn read_page(&mut self, page_num: usize, output: &mut [u8]) -> Result<()> {
+        assert!(
+            !self.is_not_allocated_page(page_num),
+            "page {} is not allocated",
+            page_num
+        );
+
+        self.page_file
+            .read_from(virtual_data_page_offset(page_num), output)
+            .await?;
+        Ok(())
+    }
+
+    /// Writes to a data page. Assumes that the partition lock is held.
+    async fn write_page(&mut self, page_num: usize, buf: &[u8]) -> Result<()> {
+        assert!(
+            !self.is_not_allocated_page(page_num),
+            "page {} is not allocated",
+            page_num
+        );
+
+        self.page_file
+            .write_to(virtual_data_page_offset(page_num), buf)
+            .await?;
+
+        Ok(())
     }
 
     /// Writes the master page to disk, because the default page size of 4kb, so
     /// we put 1bit of bitmap as 2bits.
-    async fn write_master_page(file: &mut File, master_page: &Vec<u16>) -> Result<()> {
-        let mut page_buf = vec![0u8; DEFAULT_PAGE_SIZE];
-        for index in 0..MAX_HEADER_PAGES {
-            let v = master_page[index];
-            page_buf.put_u16(v);
-        }
-        Ok(file.write_all(&page_buf).await?)
+    fn write_master_page(bitmap: &Bitmap) -> Vec<u8> {
+        let mut buf = vec![0u8; DEFAULT_PAGE_SIZE];
+        (0..MAX_HEADER_PAGES).for_each(|index| {
+            let v = if bitmap.exist(index as u32) {
+                1u16
+            } else {
+                0u16
+            };
+            buf.put_u16(v);
+        });
+        buf
     }
 
     /// Writes the header page to disk.
-    async fn write_header_page(file: &mut File, header_index: &Vec<u16>) -> Result<()> {
-        Ok(())
+    fn write_header_page(bitmap: &Bitmap) -> Vec<u8> {
+        let mut buf = vec![0u8; DEFAULT_PAGE_SIZE];
+        (0..DEFAULT_PAGE_SIZE).for_each(|index| {
+            let v = if bitmap.exist(index as u32) { 1u8 } else { 0u8 };
+            buf.put_u8(v);
+        });
+        buf
     }
 
-    #[inline]
-    fn virtual_header_page_offset(header_index: usize) -> u64 {
-        // Consider the layout if we had 4 data pages per header:
-        // Offset (in pages):  0  1  2  3  4  5  6  7  8  9 10 11
-        // Page Type:         [M][H][D][D][D][D][H][D][D][D][D][H]...
-        // Header Index:          0              1              2
-        // To get the offset in pages of a header page you should add 1 for
-        // the master page, and then take the header index times the number
-        // of data pages per header plus 1 to account for the header page
-        // itself (in the above example this coefficient would be 5)
-        let spacing_coeoff = DATA_PAGES_PER_HEADER + 1;
-        ((1 + header_index * spacing_coeoff) * DEFAULT_PAGE_SIZE) as u64
-    }
+    /// Checks if page number is for an unallocated data.
+    fn is_not_allocated_page(&self, page_num: usize) -> bool {
+        let (header_index, page_index) = (
+            (page_num / DATA_PAGES_PER_HEADER),
+            (page_num % DATA_PAGES_PER_HEADER),
+        );
 
-    #[inline]
-    fn virtual_data_page_offset(page_num: usize) -> u64 {
-        // Consider the layout if we had 4 data pages per header:
-        // Offset (in pages):  0  1  2  3  4  5  6  7  8  9 10
-        // Page Type:         [M][H][D][D][D][D][H][D][D][D][D]
-        // Data Page Index:          0  1  2  3     4  5  6  7
-        // To get the offset in pages of a given data page you should:
-        // - add one for the master page
-        // - add one for the first header page
-        // - add how many other header pages precede the data page (found by floor
-        //   dividing page num by data pages per header)
-        // - add how many data pages precede the given data page (this works out
-        //   conveniently to the page's page number)
-        let other_headers = page_num / DATA_PAGES_PER_HEADER;
-        ((2 + other_headers + page_num) * DEFAULT_PAGE_SIZE) as u64
-    }
-
-    /// Release all pages from partition for use.
-    async fn release(&self) -> Result<()> {
-        let idxs = self
-            .master_page
-            .iter()
-            .copied()
-            .filter(|&v| v != 0)
-            .map(|v| v as usize)
-            .collect::<Vec<_>>();
-
-        for idx in idxs {
-            self.header_page[idx]
-                .iter()
-                .filter(|&&v| v != 0u8)
-                .for_each(|&v| {
-                    self.release_page(idx * DATA_PAGES_PER_HEADER + (v as usize))
-                        .unwrap();
-                });
+        if header_index >= MAX_HEADER_PAGES
+            || !self.m_bitmap.exist(header_index as u32)
+            || !self.h_bitmaps[header_index].exist(page_index as u32)
+        {
+            return true;
         }
-        Ok(())
-    }
 
-    fn release_page(&self, page_num: usize) -> Result<()> {
-        todo!()
+        false
     }
 }
 
@@ -217,21 +314,9 @@ pub struct PageManager {
 
 /// private methods.
 impl PageManager {
-    /// Returns the number of data page entries in a header page.
-    #[inline]
-    fn header_entry_count(&self) -> usize {
-        (self.effective_page_size() - HEADER_HEADER_SIZE) / DATA_HEADER_SIZE
-    }
-
-    /// Returns the effective page size.
-    #[inline]
-    fn effective_page_size(&self) -> usize {
-        DEFAULT_PAGE_SIZE - RESERVED_SIZE
-    }
-
     #[inline]
     pub(crate) fn set_empty_page_metadata_size(&mut self, empty_page_metadata_size: usize) {
-        self.empty_page_metadata_size = self.effective_page_size() - empty_page_metadata_size;
+        self.empty_page_metadata_size = effective_page_size() - empty_page_metadata_size;
     }
 
     #[inline]
@@ -243,7 +328,7 @@ impl PageManager {
                 part_num
             )));
         }
-        let ph = PartitionHandle::create(part_num).await?;
+        let ph = PartitionHandle::open(part_num, &self.path).await?;
         self.partitions.insert(part_num, ph);
         Ok(part_num)
     }
@@ -303,7 +388,7 @@ impl PageManager {
     pub(crate) async fn release_part(&mut self, part_num: usize) -> Result<()> {
         let _guard = self.guard.lock();
 
-        let part = self
+        let mut part = self
             .partitions
             .remove(&part_num)
             .ok_or(Error::NotFound(format!(
@@ -311,7 +396,7 @@ impl PageManager {
                 part_num
             )))?;
 
-        part.release().await?;
+        part.release_data_pages().await?;
 
         fs::remove_file("path").await?;
 
@@ -361,7 +446,7 @@ impl PageManager {
         let _guard = self.guard.lock();
 
         // Return header page if exist in page cache.
-        if let Some(page) = self.cache.get(page_num) {
+        if let Some(page) = self.cache.lookup(page_num) {
             return page;
         }
 
@@ -386,6 +471,67 @@ impl PageManager {
 
 pub fn update_free_space(page: &HeaderPage, new_free_space: usize) {
     todo!()
+}
+
+/// Returns the number of data page entries in a header page.
+#[inline]
+fn header_entry_count() -> usize {
+    (effective_page_size() - HEADER_HEADER_SIZE) / DATA_HEADER_SIZE
+}
+
+/// Returns the effective page size.
+#[inline]
+fn effective_page_size() -> usize {
+    DEFAULT_PAGE_SIZE - RESERVED_SIZE
+}
+
+#[inline]
+fn virtual_header_page_offset(header_index: usize) -> u64 {
+    // Consider the layout if we had 4 data pages per header:
+    // Offset (in pages):  0  1  2  3  4  5  6  7  8  9 10 11
+    // Page Type:         [M][H][D][D][D][D][H][D][D][D][D][H]...
+    // Header Index:          0              1              2
+    // To get the offset in pages of a header page you should add 1 for
+    // the master page, and then take the header index times the number
+    // of data pages per header plus 1 to account for the header page
+    // itself (in the above example this coefficient would be 5)
+    let spacing_coeoff = DATA_PAGES_PER_HEADER + 1;
+    ((1 + header_index * spacing_coeoff) * DEFAULT_PAGE_SIZE) as u64
+}
+
+#[inline]
+fn virtual_data_page_offset(page_num: usize) -> u64 {
+    // Consider the layout if we had 4 data pages per header:
+    // Offset (in pages):  0  1  2  3  4  5  6  7  8  9 10
+    // Page Type:         [M][H][D][D][D][D][H][D][D][D][D]
+    // Data Page Index:          0  1  2  3     4  5  6  7
+    // To get the offset in pages of a given data page you should:
+    // - add one for the master page
+    // - add one for the first header page
+    // - add how many other header pages precede the data page (found by floor
+    //   dividing page num by data pages per header)
+    // - add how many data pages precede the given data page (this works out
+    //   conveniently to the page's page number)
+    let other_headers = page_num / DATA_PAGES_PER_HEADER;
+    ((2 + other_headers + page_num) * DEFAULT_PAGE_SIZE) as u64
+}
+
+/// Gets partition number from virtual page number.
+#[inline]
+fn calculate_part_num(virtial_page_num: u64) -> usize {
+    (virtial_page_num / 10000000000) as usize
+}
+
+/// Gets data page number from virtual page number.
+#[inline]
+fn calculate_page_num(virtial_page_num: u64) -> usize {
+    (virtial_page_num % 10000000000) as usize
+}
+
+/// Returns the virtual page number given partition/data page number.
+#[inline]
+fn virtual_page_num(part_num: usize, page_num: usize) -> u64 {
+    (part_num * 10000000000 + page_num) as u64
 }
 
 #[cfg(test)]

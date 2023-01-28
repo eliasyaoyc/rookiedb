@@ -50,6 +50,12 @@ impl Bitmap {
         self.bits[key] & (1 << bit) != 0
     }
 
+    /// Return the index of unset bit(from 0 start).
+    #[inline]
+    pub(crate) fn vacance(&self) -> Option<u32> {
+        (0..self.cap).into_iter().find(|&idx| !self.exist(idx))
+    }
+
     /// Returns the number of unset bits.
     #[inline]
     pub(crate) fn free(&self) -> u32 {
@@ -133,19 +139,37 @@ fn bit(index: u32) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     #[test]
     fn test() {
         let mut bitmap = Bitmap::new(2048);
-        
+
         for i in 0..2048 {
             bitmap.set(i);
         }
 
-        let mut iter = bitmap.iter();
-        while let Some(v) = iter.next() {
+        let iter = bitmap.iter();
+        for v in iter {
             println!("{}", v)
         }
+    }
+
+    #[test]
+    fn test_fragment() {
+        let mut bitmap = Bitmap::new(5);
+
+        bitmap.set(0);
+        bitmap.set(2);
+        bitmap.set(3);
+        bitmap.set(4);
+
+        assert_eq!(Some(1), bitmap.vacance());
+
+        bitmap.set(1);
+
+        assert_eq!(None, bitmap.vacance());
     }
 }
