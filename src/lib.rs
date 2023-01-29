@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 #![allow(clippy::uninlined_format_args)]
+#![allow(clippy::await_holding_lock)]
+#![feature(new_uninit)]
 use std::fmt::Debug;
 
 mod catalog;

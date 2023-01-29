@@ -1,20 +1,20 @@
 mod bg;
 mod cache;
 mod index;
-mod page_manager;
 mod manifest;
 pub(crate) mod page;
 pub(crate) mod recover;
 mod stats;
 
+use std::sync::Arc;
+
 use parking_lot::RwLock;
 
-use self::{page_manager::PageManager, stats::TableStats};
+use self::{page::partition::PartitionHandle, stats::TableStats};
 use crate::{
     catalog::schema::Schema,
-    datatypes::record::{Record, RecordId},
-    error::Result,
-    utils::fs,
+    datatypes::record::{new_record_id, Record, RecordId},
+    error::{Error, Result},
 };
 
 /// A Table represents a database table with which users can insert, get,
@@ -74,8 +74,11 @@ pub struct Table {
     /// The schema of the table.
     schema: Schema,
 
-    /// The page group of the table.
-    page_manager: PageManager,
+    /// The partition of table.
+    part_handle: Arc<PartitionHandle>,
+
+    // The size (in bytes) of the bitmap found at the beginning of each data page.
+    bitmap_size: usize,
 
     /// The number of records on each data page.
     num_records_per_page: usize,
@@ -88,22 +91,20 @@ impl Table {
     /// Create a new table.
     pub async fn create(
         schema: Schema,
-        table_dir: String,
+        part_handle: Arc<PartitionHandle>,
         num_records_per_page: usize,
     ) -> Result<Self> {
-        fs::create_dir(&table_dir).await?;
-
-        let page_manager = PageManager::new(0, table_dir.clone());
-
         // todo enable cleanup and flush job.
 
         let table = Table {
             guard: RwLock::default(),
             schema,
-            page_manager,
+            part_handle,
             num_records_per_page,
             table_stats: TableStats::new(),
+            bitmap_size: 0,
         };
+
         Ok(table)
     }
 
@@ -123,11 +124,11 @@ impl Table {
     // }
 
     pub fn statistics(&self) -> &TableStats {
-        &&self.table_stats
+        &self.table_stats
     }
 
     pub fn get_part_num(&self) -> usize {
-        self.page_manager.part_num()
+        self.part_handle.part_num()
     }
 
     /// Insert a record to this table and returns the record id of the newly
@@ -137,39 +138,70 @@ impl Table {
     /// if the first free page has  bitmao 0b11101000, then the record is
     /// inserted into the page with index 3 and the bitmap is update to
     /// 0b11111000.
-    pub fn insert(&self, record: Record) -> Result<RecordId> {
+    pub(crate) async fn insert(&self, record: Record) -> Result<RecordId> {
         // Verify that the record whether valid. For example field value or field type.
         let schema = &self.schema;
         let record = schema.verify_record(record)?;
+
         let page = self
-            .page_manager
-            .get_page_with_space(schema.estimated_size());
+            .part_handle
+            .get_page_with_space(schema.estimated_size())
+            .await;
 
         // Find the first empty slot in the bitmap.
         // entry number of the first free slot and store it in entry number;
         // and(2) we count the total number of entries on this page.
+        let mut entry_num = page.get_idle_entry_num().await?;
 
-        todo!()
+        if self.num_records_per_page == 1 {
+            entry_num = 0;
+        }
+
+        assert!(entry_num < self.num_records_per_page);
+
+        // Insert the record and update the bitmap.
+        page.insert_record(entry_num, record).await?;
+
+        // Update the metadata.
+        // todo stats ...
+        Ok(new_record_id(page.get_page_num(), entry_num))
     }
 
     /// Retrieves a record from the table, throwing an exception if no such
     /// record exists.
-    pub fn search(&self, id: RecordId) -> Result<&Record> {
-        todo!()
+    pub(crate) async fn get(&self, id: RecordId) -> Result<Record> {
+        let entry_num = id.1;
+        assert!(entry_num > 0 && entry_num < self.num_records_per_page);
+
+        let page = self.part_handle.get_page(id.0).await;
+        if !page.contains(entry_num) {
+            return Err(Error::NotFound("record dose not exist.".to_owned()));
+        }
+        let offset = self.bitmap_size + (id.1 * self.schema.estimated_size());
+
+        page.read_to_record(offset).await
     }
 
     /// Updates an existing record with new values and returns the existing
     /// record. stats is updated accordingly. An exception is thrown if
     /// recordId does not correspond to and existing record in the table.
-    pub fn update(&self, old_record_id: RecordId, updated: Record) -> Result<&Record> {
+    pub(crate) async fn update(&self, old_record_id: RecordId, updated: Record) -> Result<&Record> {
+        let entry_num = old_record_id.1;
+        assert!(entry_num > 0 && entry_num < self.num_records_per_page);
+
         todo!()
     }
 
-    /// Deletes and returns the record specified bu recordId from the table and
+    /// Removes and returns the record specified bu recordId from the table and
     /// updates stats, freePageNums and numRecords as necessary. An
     /// exception is thrown if recordId dose not correspond to an existing
     /// record in the table.
-    pub fn delete(&self, id: RecordId) -> Result<Record> {
+    pub(crate) async fn remove(&self, id: RecordId) -> Result<Record> {
+        let entry_num = id.1;
+        assert!(entry_num > 0 && entry_num < self.num_records_per_page);
+
+        let page = self.part_handle.get_page(id.0).await;
+
         todo!()
     }
 }

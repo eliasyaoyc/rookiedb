@@ -1,10 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     catalog::schema::Schema,
     datatypes::record::{Record, RecordId},
     error::{Error, Result},
-    table::Table,
+    table::{
+        page::{manager::PageManager, partition::PartitionHandle},
+        Table,
+    },
     Options,
 };
 
@@ -12,14 +15,18 @@ use crate::{
 /// to its disk manager, buffer manager, lock manager and recovery manager.
 pub struct Database {
     options: Options,
+    manager: PageManager,
     tables: HashMap<String, Table>,
 }
 
 impl Database {
     pub fn open(options: Options) -> Self {
+        let manager = PageManager::new(options.path.clone());
+
         Self {
             options,
             tables: HashMap::new(),
+            manager,
         }
     }
 
@@ -31,12 +38,15 @@ impl Database {
             )));
         }
 
-        let table = Table::create(
-            schema,
-            format!("{}/{}", self.options.path, table_name),
-            self.options.num_records_per_page,
-        )
-        .await?;
+        let part_num = self.manager.alloc_part().await?;
+
+        // todo optimize.
+        let ph = unsafe {
+            let ptr = self.manager.get_partition(part_num)?.value() as *const PartitionHandle;
+            Arc::from_raw(ptr)
+        };
+
+        let table = Table::create(schema, ph, self.options.num_records_per_page).await?;
 
         self.tables.insert(table_name, table);
         Ok(())
@@ -49,6 +59,6 @@ impl Database {
             .get(table_name)
             .ok_or(Error::NotFound(format!("table {}", table_name)))?;
 
-        table.insert(record)
+        table.insert(record).await
     }
 }
