@@ -1,7 +1,8 @@
 mod bg;
 mod cache;
-mod index;
+pub(crate) mod index;
 mod manifest;
+pub(crate) mod metadata;
 pub(crate) mod page;
 pub(crate) mod recover;
 mod stats;
