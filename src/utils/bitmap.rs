@@ -139,8 +139,6 @@ fn bit(index: u32) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use super::*;
 
     #[test]

@@ -6,12 +6,12 @@ use super::{
     manager::{
         virtual_header_page_offset, DATA_PAGES_PER_HEADER, DEFAULT_PAGE_SIZE, MAX_HEADER_PAGES,
     },
-    marker, HeaderPage, PageFile, PageRef,
+    marker, PageFile, PageRef,
 };
 use crate::{
     error::{Error, Result},
     table::{
-        cache::lru::Lru,
+        cache::PageCache,
         page::manager::{effective_page_size, virtual_data_page_offset, virtual_page_num},
     },
     utils::{bitmap::Bitmap, fs},
@@ -23,7 +23,7 @@ pub struct PartitionHandle {
     part_num: usize,
 
     /// Page cache.
-    cache: Lru,
+    cache: PageCache,
 
     page_file: PageFile,
 
@@ -93,7 +93,7 @@ impl PartitionHandle {
 
         Ok(PartitionHandle {
             part_num,
-            cache: Lru::with_capacity(10),
+            cache: PageCache::with_capacity(10),
             page_file,
             m_bitmap,
             h_bitmaps: Vec::with_capacity(DATA_PAGES_PER_HEADER),
@@ -322,10 +322,6 @@ impl PartitionHandle {
         );
 
         PageRef::from_data_page(unsafe { NonNull::new_unchecked(Box::leak(page)) })
-    }
-
-    pub(crate) fn update_free_space(page: &HeaderPage, new_free_space: usize) {
-        todo!()
     }
 
     /// Returns how many data pages in current partition.

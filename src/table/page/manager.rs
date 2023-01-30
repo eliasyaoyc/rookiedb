@@ -290,8 +290,6 @@ pub(crate) fn virtual_page_num(part_num: usize, page_num: usize) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_alloc_part() {}
 

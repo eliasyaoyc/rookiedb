@@ -7,7 +7,7 @@ use std::{io::SeekFrom, marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
 use async_fs::File;
 use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
-use self::{manager::DEFAULT_PAGE_SIZE, reader::PageReader};
+use self::manager::DEFAULT_PAGE_SIZE;
 use crate::{datatypes::record::Record, error::Result};
 
 pub(crate) struct PageFile(pub(crate) File);
@@ -91,21 +91,21 @@ impl<Type> PageRef<Type> {
     // directly.
     pub(crate) async fn insert_record(
         &self,
-        entry_num: usize,
-        record: crate::datatypes::record::Record,
+        _entry_num: usize,
+        _record: crate::datatypes::record::Record,
     ) -> Result<()> {
         todo!()
     }
 
-    pub(crate) async fn remove_record(&self, id: usize) -> Result<Record> {
+    pub(crate) async fn remove_record(&self, _id: usize) -> Result<Record> {
         todo!()
     }
 
-    pub(crate) async fn read_to_record(&self, offset: usize) -> Result<Record> {
+    pub(crate) async fn read_to_record(&self, _offset: usize) -> Result<Record> {
         todo!()
     }
 
-    pub(crate) async fn update_free_space(&mut self, freed_space: usize) -> Result<()> {
+    pub(crate) async fn update_free_space(&mut self, _freed_space: usize) -> Result<()> {
         Ok(())
     }
 
@@ -131,8 +131,8 @@ impl<'a, Type> PageRef<Type> {
         unsafe { &*ptr }
     }
 
-    pub(crate) fn into_data_page_mut(mut self) -> &'a mut DataPage {
-        let ptr = Self::as_data_page_ptr(&mut self);
+    pub(crate) fn into_data_page_mut(self) -> &'a mut DataPage {
+        let ptr = Self::as_data_page_ptr(&self);
         unsafe { &mut *ptr }
     }
 
@@ -232,8 +232,8 @@ impl<'a> PageRef<marker::Header> {
         unsafe { &*ptr }
     }
 
-    pub(crate) fn into_header_page_mut(mut self) -> &'a mut HeaderPage {
-        let ptr = Self::as_header_page_ptr(&mut self);
+    pub(crate) fn into_header_page_mut(self) -> &'a mut HeaderPage {
+        let ptr = Self::as_header_page_ptr(&self);
         unsafe { &mut *ptr }
     }
 }
@@ -266,7 +266,7 @@ impl PageRef<marker::Data> {
     }
 
     /// Checks whether page is contains entry.
-    pub(crate) fn contains(&self, entry_num: usize) -> bool {
+    pub(crate) fn contains(&self, _entry_num: usize) -> bool {
         todo!()
     }
 }
@@ -311,7 +311,7 @@ impl HeaderPage {
         std::ptr::addr_of_mut!((*this).data_page_nums).write(0);
     }
 
-    pub(crate) fn new(page_num: usize, header_offset: usize, first: bool) -> Box<Self> {
+    pub(crate) fn new(_page_num: usize, _header_offset: usize, _first: bool) -> Box<Self> {
         unsafe {
             let mut hp = Box::new_uninit();
             HeaderPage::init(hp.as_mut_ptr());
@@ -320,7 +320,7 @@ impl HeaderPage {
     }
 
     /// Gets and loads a page with the required free space.
-    pub(crate) async fn load_page_with_space(&self, required_space: usize) -> DataPage {
+    pub(crate) async fn load_page_with_space(&self, _required_space: usize) -> DataPage {
         todo!()
     }
 

@@ -1,4 +1,4 @@
-macro_rules! all_variables {
+macro_rules! _all_variables {
     () => {
         
     };
