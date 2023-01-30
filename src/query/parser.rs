@@ -1,7 +1,5 @@
 use anyhow::Result;
-use sqlparser::ast::Statement;
-use sqlparser::dialect::GenericDialect;
-use sqlparser::parser::Parser;
+use sqlparser::{ast::Statement, dialect::GenericDialect, parser::Parser};
 
 /// Parse a string to a collection of statements.
 ///

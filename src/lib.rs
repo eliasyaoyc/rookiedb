@@ -9,7 +9,7 @@ mod catalog;
 mod database;
 mod datatypes;
 pub mod error;
-pub(crate) mod query;
+pub mod query;
 mod table;
 mod utils;
 

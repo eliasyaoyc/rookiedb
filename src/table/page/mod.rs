@@ -7,7 +7,7 @@ use std::{io::SeekFrom, marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
 use async_fs::File;
 use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
-use self::manager::DEFAULT_PAGE_SIZE;
+use self::{manager::DEFAULT_PAGE_SIZE, reader::PageReader};
 use crate::{datatypes::record::Record, error::Result};
 
 pub(crate) struct PageFile(pub(crate) File);
@@ -68,6 +68,13 @@ pub struct PageRef<Type> {
     /// The pointer to the data or header node.
     page: NonNull<DataPage>,
     _marker: PhantomData<Type>,
+}
+
+impl<Type> Copy for PageRef<Type> {}
+impl<Type> Clone for PageRef<Type> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 // Header/Data Page common methods.
