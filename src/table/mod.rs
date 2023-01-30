@@ -6,8 +6,6 @@ pub(crate) mod page;
 pub(crate) mod recover;
 mod stats;
 
-use std::sync::Arc;
-
 use parking_lot::RwLock;
 
 use self::{page::partition::PartitionHandle, stats::TableStats};
@@ -170,11 +168,10 @@ impl Table {
     /// Retrieves a record from the table, throwing an exception if no such
     /// record exists.
     pub(crate) async fn get(&mut self, id: RecordId) -> Result<Record> {
-        let entry_num = id.1;
-        assert!(entry_num > 0 && entry_num < self.num_records_per_page);
+        assert!(id.1 > 0 && id.1 < self.num_records_per_page);
 
         let page = self.part_handle.get_page(id.0).await?;
-        if !page.contains(entry_num) {
+        if !page.contains(id.1) {
             return Err(Error::NotFound("record dose not exist.".to_owned()));
         }
         let offset = self.bitmap_size + (id.1 * self.schema.estimated_size());
@@ -189,11 +186,25 @@ impl Table {
         &mut self,
         old_record_id: RecordId,
         updated: Record,
-    ) -> Result<&Record> {
+    ) -> Result<Record> {
         let entry_num = old_record_id.1;
         assert!(entry_num > 0 && entry_num < self.num_records_per_page);
 
-        todo!()
+        let record = self.schema.verify_record(updated)?;
+        // If we're updating a record we'll need exclusive access to the page
+        // it's on.
+        // todo(project_part2): update the following line,
+
+        let page = self.part_handle.get_page(old_record_id.0).await?;
+
+        let old_record = self.get(old_record_id).await?;
+
+        page.insert_record(entry_num, record).await?;
+
+        // Update the metadata.
+        // todo stats ...
+
+        Ok(old_record)
     }
 
     /// Removes and returns the record specified bu recordId from the table and
@@ -201,11 +212,24 @@ impl Table {
     /// exception is thrown if recordId dose not correspond to an existing
     /// record in the table.
     pub(crate) async fn remove(&mut self, id: RecordId) -> Result<Record> {
-        let entry_num = id.1;
-        assert!(entry_num > 0 && entry_num < self.num_records_per_page);
+        assert!(id.1 > 0 && id.1 < self.num_records_per_page);
 
-        let page = self.part_handle.get_page(id.0).await?;
-        todo!()
+        let mut page = self.part_handle.get_page(id.0).await?;
+
+        let record = page.remove_record(id.1).await?;
+
+        let freed_space = if self.num_records_per_page == 1 {
+            1
+        } else {
+            self.num_records_per_page - page.num_records() as usize
+        } * self.schema.estimated_size();
+
+        page.update_free_space(freed_space).await?;
+
+        // Update the metadata.
+        // todo stats ...
+
+        Ok(record)
     }
 }
 

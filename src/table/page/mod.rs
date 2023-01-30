@@ -87,6 +87,8 @@ impl<Type> PageRef<Type> {
         todo!()
     }
 
+    // Insert record, if record is exist then update value, otherwise insert
+    // directly.
     pub(crate) async fn insert_record(
         &self,
         entry_num: usize,
@@ -95,8 +97,20 @@ impl<Type> PageRef<Type> {
         todo!()
     }
 
+    pub(crate) async fn remove_record(&self, id: usize) -> Result<Record> {
+        todo!()
+    }
+
     pub(crate) async fn read_to_record(&self, offset: usize) -> Result<Record> {
         todo!()
+    }
+
+    pub(crate) async fn update_free_space(&mut self, freed_space: usize) -> Result<()> {
+        Ok(())
+    }
+
+    pub(crate) fn num_records(&self) -> u16 {
+        self.as_data_page().len
     }
 }
 
