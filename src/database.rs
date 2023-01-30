@@ -42,8 +42,9 @@ impl Database {
 
         // todo optimize.
         let ph = unsafe {
-            let ptr = self.manager.get_partition(part_num)?.value() as *const PartitionHandle;
-            Arc::from_raw(ptr)
+            let ptr = self.manager.get_partition(part_num)?.value() as *const PartitionHandle
+                as *mut PartitionHandle;
+            Box::from_raw(ptr)
         };
 
         let table = Table::create(schema, ph, self.options.num_records_per_page).await?;

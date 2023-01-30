@@ -75,7 +75,7 @@ pub struct Table {
     schema: Schema,
 
     /// The partition of table.
-    part_handle: Arc<PartitionHandle>,
+    part_handle: Box<PartitionHandle>,
 
     // The size (in bytes) of the bitmap found at the beginning of each data page.
     bitmap_size: usize,
@@ -91,7 +91,7 @@ impl Table {
     /// Create a new table.
     pub async fn create(
         schema: Schema,
-        part_handle: Arc<PartitionHandle>,
+        part_handle: Box<PartitionHandle>,
         num_records_per_page: usize,
     ) -> Result<Self> {
         // todo enable cleanup and flush job.
@@ -169,11 +169,11 @@ impl Table {
 
     /// Retrieves a record from the table, throwing an exception if no such
     /// record exists.
-    pub(crate) async fn get(&self, id: RecordId) -> Result<Record> {
+    pub(crate) async fn get(&mut self, id: RecordId) -> Result<Record> {
         let entry_num = id.1;
         assert!(entry_num > 0 && entry_num < self.num_records_per_page);
 
-        let page = self.part_handle.get_page(id.0).await;
+        let page = self.part_handle.get_page(id.0).await?;
         if !page.contains(entry_num) {
             return Err(Error::NotFound("record dose not exist.".to_owned()));
         }
@@ -185,7 +185,11 @@ impl Table {
     /// Updates an existing record with new values and returns the existing
     /// record. stats is updated accordingly. An exception is thrown if
     /// recordId does not correspond to and existing record in the table.
-    pub(crate) async fn update(&self, old_record_id: RecordId, updated: Record) -> Result<&Record> {
+    pub(crate) async fn update(
+        &mut self,
+        old_record_id: RecordId,
+        updated: Record,
+    ) -> Result<&Record> {
         let entry_num = old_record_id.1;
         assert!(entry_num > 0 && entry_num < self.num_records_per_page);
 
@@ -196,12 +200,11 @@ impl Table {
     /// updates stats, freePageNums and numRecords as necessary. An
     /// exception is thrown if recordId dose not correspond to an existing
     /// record in the table.
-    pub(crate) async fn remove(&self, id: RecordId) -> Result<Record> {
+    pub(crate) async fn remove(&mut self, id: RecordId) -> Result<Record> {
         let entry_num = id.1;
         assert!(entry_num > 0 && entry_num < self.num_records_per_page);
 
-        let page = self.part_handle.get_page(id.0).await;
-
+        let page = self.part_handle.get_page(id.0).await?;
         todo!()
     }
 }

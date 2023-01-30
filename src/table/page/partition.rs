@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, io::ErrorKind, ptr::NonNull, usize, vec};
+use std::{io::ErrorKind, ptr::NonNull, usize, vec};
 
 use bytes::BufMut;
 
@@ -10,7 +10,10 @@ use super::{
 };
 use crate::{
     error::{Error, Result},
-    table::page::manager::{effective_page_size, virtual_data_page_offset, virtual_page_num},
+    table::{
+        cache::lru::Lru,
+        page::manager::{effective_page_size, virtual_data_page_offset, virtual_page_num},
+    },
     utils::{bitmap::Bitmap, fs},
 };
 
@@ -18,6 +21,9 @@ pub struct PartitionHandle {
     /// Partition to allocate new header pages in - may be different from
     /// partition from data pages.
     part_num: usize,
+
+    /// Page cache.
+    cache: Lru,
 
     page_file: PageFile,
 
@@ -87,6 +93,7 @@ impl PartitionHandle {
 
         Ok(PartitionHandle {
             part_num,
+            cache: Lru::with_capacity(10),
             page_file,
             m_bitmap,
             h_bitmaps: Vec::with_capacity(DATA_PAGES_PER_HEADER),
@@ -266,16 +273,32 @@ impl PartitionHandle {
     }
 
     /// Gets page.
-    pub(crate) async fn get_page(&self, page_num: u64) -> PageRef<marker::Data> {
+    pub(crate) async fn get_page(&mut self, page_num: u64) -> Result<PageRef<marker::Data>> {
         // Return header page if exist in page cache.
-        // if let Some(page) = self.cache.lookup(page_num) {
-        //     return page;
-        // }
+        if let Some(entry) = self.cache.lookup(page_num) {
+            // return page;
+            assert!(
+                entry.num() == page_num,
+                "get page failure, expect {} but got {}",
+                page_num,
+                entry.num()
+            );
 
-        // Read from disk if page file is exist and constructor `HeaderPage`.
+            return Ok(unsafe { entry.page().cast_to_data_page_unchecked() });
+        }
 
-        // Create new header page file and constructor `HeaderPage`.
-        todo!()
+        assert!(
+            !self.is_not_allocated_page(page_num as usize),
+            "page {} is not allocated",
+            page_num
+        );
+
+        let mut buf = Vec::with_capacity(DEFAULT_PAGE_SIZE);
+        self.read_page(page_num as usize, &mut buf).await?;
+
+        let mut data_page = PageRef::new_data_page();
+        data_page.as_data_page_mut().fill(&buf);
+        Ok(data_page)
     }
 
     pub(crate) async fn get_page_with_space(&self, required_space: usize) -> PageRef<marker::Data> {
@@ -290,7 +313,7 @@ impl PartitionHandle {
         );
 
         // todo (project4_part2): Update the following line.
-        
+
         let page = Box::new(
             self.first_header
                 .as_header_page()
@@ -301,8 +324,12 @@ impl PartitionHandle {
         PageRef::from_data_page(unsafe { NonNull::new_unchecked(Box::leak(page)) })
     }
 
+    pub(crate) fn update_free_space(page: &HeaderPage, new_free_space: usize) {
+        todo!()
+    }
+
     /// Returns how many data pages in current partition.
-    pub fn get_num_data_pages(self) -> usize {
+    pub(crate) fn get_num_data_pages(self) -> usize {
         self.first_header
             .as_header_page()
             .iter()
@@ -313,8 +340,4 @@ impl PartitionHandle {
     pub(crate) fn part_num(&self) -> usize {
         self.part_num
     }
-}
-
-pub fn update_free_space(page: &HeaderPage, new_free_space: usize) {
-    todo!()
 }

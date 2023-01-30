@@ -2,6 +2,7 @@
 #![allow(clippy::uninlined_format_args)]
 #![allow(clippy::await_holding_lock)]
 #![feature(new_uninit)]
+#![feature(slice_as_chunks)]
 use std::fmt::Debug;
 
 mod catalog;

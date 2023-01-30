@@ -2,7 +2,7 @@ pub(crate) mod manager;
 pub(crate) mod partition;
 pub(crate) mod reader;
 
-use std::{io::SeekFrom, marker::PhantomData, mem::MaybeUninit, ptr::NonNull, sync::Arc};
+use std::{io::SeekFrom, marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
 
 use async_fs::File;
 use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
@@ -64,6 +64,7 @@ pub mod marker {
 }
 
 pub struct PageRef<Type> {
+    is_header: bool,
     /// The pointer to the data or header node.
     page: NonNull<DataPage>,
     _marker: PhantomData<Type>,
@@ -87,12 +88,78 @@ impl<Type> PageRef<Type> {
         todo!()
     }
 
-    pub(crate) fn contains(&self, entry_num: usize) -> bool {
-        todo!()
-    }
-
     pub(crate) async fn read_to_record(&self, offset: usize) -> Result<Record> {
         todo!()
+    }
+}
+
+/// Convert to data page.
+impl<'a, Type> PageRef<Type> {
+    pub(crate) fn as_data_page(&self) -> &DataPage {
+        let ptr = Self::as_data_page_ptr(self);
+        unsafe { &*ptr }
+    }
+
+    pub(crate) fn as_data_page_mut(&mut self) -> &mut DataPage {
+        let ptr = Self::as_data_page_ptr(self);
+        unsafe { &mut *ptr }
+    }
+
+    pub(crate) fn into_data_page(self) -> &'a DataPage {
+        let ptr = Self::as_data_page_ptr(&self);
+        unsafe { &*ptr }
+    }
+
+    pub(crate) fn into_data_page_mut(mut self) -> &'a mut DataPage {
+        let ptr = Self::as_data_page_ptr(&mut self);
+        unsafe { &mut *ptr }
+    }
+
+    pub(crate) fn as_data_page_ptr(this: &Self) -> *mut DataPage {
+        this.page.as_ptr()
+    }
+}
+
+pub(crate) enum ForceResult<Header, Data> {
+    Header(Header),
+    Data(Data),
+}
+impl PageRef<marker::HeaderOrData> {
+    /// Checks whether a page is an `Header` page or a `Data` page.
+    pub(crate) fn force(self) -> ForceResult<PageRef<marker::Header>, PageRef<marker::Data>> {
+        if self.is_header {
+            ForceResult::Header(PageRef {
+                is_header: true,
+                page: self.page,
+                _marker: PhantomData,
+            })
+        } else {
+            ForceResult::Data(PageRef {
+                is_header: false,
+                page: self.page,
+                _marker: PhantomData,
+            })
+        }
+    }
+
+    /// Unsafely asserts to the compiler the static information that this page
+    /// is a `Header`
+    pub(crate) unsafe fn cast_to_header_page_unchecked(self) -> PageRef<marker::Header> {
+        PageRef {
+            page: self.page,
+            _marker: PhantomData,
+            is_header: true,
+        }
+    }
+
+    /// Unsafely asserts to the compiler the static information that this page
+    /// is a `Data`
+    pub(crate) unsafe fn cast_to_data_page_unchecked(self) -> PageRef<marker::Data> {
+        PageRef {
+            page: self.page,
+            _marker: PhantomData,
+            is_header: false,
+        }
     }
 }
 
@@ -102,6 +169,7 @@ impl PageRef<marker::Header> {
         Self {
             page: NonNull::from(Box::leak(HeaderPage::new(page_num, header_offset, first))).cast(),
             _marker: PhantomData,
+            is_header: true,
         }
     }
 
@@ -110,6 +178,7 @@ impl PageRef<marker::Header> {
         PageRef {
             page: page.cast(),
             _marker: PhantomData,
+            is_header: true,
         }
     }
 
@@ -117,6 +186,7 @@ impl PageRef<marker::Header> {
         PageRef {
             page: self.page,
             _marker: PhantomData,
+            is_header: true,
         }
     }
 
@@ -135,12 +205,25 @@ impl PageRef<marker::Header> {
     }
 }
 
+impl<'a> PageRef<marker::Header> {
+    pub(crate) fn into_header_page(self) -> &'a HeaderPage {
+        let ptr = Self::as_header_page_ptr(&self);
+        unsafe { &*ptr }
+    }
+
+    pub(crate) fn into_header_page_mut(mut self) -> &'a mut HeaderPage {
+        let ptr = Self::as_header_page_ptr(&mut self);
+        unsafe { &mut *ptr }
+    }
+}
+
 // Data-Page proprietary methods.
 impl PageRef<marker::Data> {
     pub(crate) fn new_data_page() -> Self {
         Self {
             page: NonNull::from(Box::leak(DataPage::new())),
             _marker: PhantomData,
+            is_header: false,
         }
     }
 
@@ -149,6 +232,7 @@ impl PageRef<marker::Data> {
         Self {
             page,
             _marker: PhantomData,
+            is_header: false,
         }
     }
 
@@ -156,21 +240,13 @@ impl PageRef<marker::Data> {
         PageRef {
             page: self.page,
             _marker: PhantomData,
+            is_header: false,
         }
     }
 
-    pub(crate) fn as_data_page(&self) -> &DataPage {
-        let ptr = Self::as_data_page_ptr(self);
-        unsafe { &*ptr }
-    }
-
-    pub(crate) fn as_data_page_mut(&mut self) -> &mut DataPage {
-        let ptr = Self::as_data_page_ptr(self);
-        unsafe { &mut *ptr }
-    }
-
-    pub(crate) fn as_data_page_ptr(this: &Self) -> *mut DataPage {
-        this.page.as_ptr()
+    /// Checks whether page is contains entry.
+    pub(crate) fn contains(&self, entry_num: usize) -> bool {
+        todo!()
     }
 }
 
@@ -266,7 +342,7 @@ pub struct DataPage {
     parent: Option<NonNull<HeaderPage>>,
     parent_idx: MaybeUninit<u16>,
     len: u16,
-    vals: [MaybeUninit<u8>; DEFAULT_PAGE_SIZE],
+    vals: MaybeUninit<[u8; DEFAULT_PAGE_SIZE]>,
 }
 
 impl DataPage {
@@ -286,6 +362,17 @@ impl DataPage {
             let mut dp = Box::new_uninit();
             DataPage::init(dp.as_mut_ptr());
             dp.assume_init()
+        }
+    }
+
+    pub(crate) fn fill(&mut self, data: &[u8]) {
+        assert!(data.len() == DEFAULT_PAGE_SIZE, "invalid data.");
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                data.as_ptr(),
+                self.vals.as_mut_ptr() as *mut _,
+                DEFAULT_PAGE_SIZE,
+            );
         }
     }
 }

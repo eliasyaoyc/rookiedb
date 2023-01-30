@@ -6,10 +6,9 @@ use std::{
 use dashmap::{mapref::one::RefMut, DashMap};
 use parking_lot::Mutex;
 
-use super::{partition::PartitionHandle, HeaderPage};
+use super::partition::PartitionHandle;
 use crate::{
     error::{Error, Result},
-    table::cache::lru::Lru,
     utils::fs,
 };
 
@@ -46,9 +45,6 @@ pub struct PageManager {
     guard: Mutex<()>,
 
     path: String,
-
-    /// Page cache.
-    cache: Lru<HeaderPage>,
 
     /// The page manager id.
     page_manager_id: u32,
@@ -98,7 +94,6 @@ impl PageManager {
     pub fn new(path: String) -> Self {
         PageManager {
             guard: Mutex::new(()),
-            cache: Lru::with_capacity(10),
             page_manager_id: 0,
             empty_page_metadata_size: 0,
             partitions: DashMap::new(),
