@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     catalog::schema::Schema,
-    datatypes::record::{Record, RecordId},
+    common::record::{Record, RecordId},
     error::{Error, Result},
     table::{
         page::{manager::PageManager, partition::PartitionHandle},

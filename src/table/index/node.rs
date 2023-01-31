@@ -4,6 +4,8 @@ use std::{
     ptr::{self, NonNull},
 };
 
+use self::marker::LeafOrInternal;
+
 const B: usize = 6;
 pub const CAPACITY: usize = 2 * B - 1;
 pub const MIN_LEN_AFTER_SPLIT: usize = B - 1;
@@ -51,9 +53,60 @@ impl<K, V, Type> NodeRef<K, V, Type> {
     pub unsafe fn drop_key_val(&self) {}
 }
 
+pub enum ForceResult<Leaf, Internal> {
+    Leaf(Leaf),
+    Internal(Internal),
+}
+
+impl<K, V> NodeRef<K, V, LeafOrInternal> {
+    pub fn force(
+        self,
+    ) -> ForceResult<NodeRef<K, V, marker::Leaf>, NodeRef<K, V, marker::Internal>> {
+        if self.height == 0 {
+            ForceResult::Leaf(NodeRef {
+                height: self.height,
+                node: self.node,
+                phantom: PhantomData,
+            })
+        } else {
+            ForceResult::Internal(NodeRef {
+                height: self.height,
+                node: self.node,
+                phantom: PhantomData,
+            })
+        }
+    }
+
+    unsafe fn cast_to_leaf_unchecked(self) -> NodeRef<K, V, marker::Leaf> {
+        assert!(self.height == 0);
+        NodeRef {
+            height: self.height,
+            node: self.node,
+            phantom: PhantomData,
+        }
+    }
+
+    unsafe fn cast_to_internal_unchecked(self) -> NodeRef<K, V, marker::Internal> {
+        assert!(self.height > 0);
+        NodeRef {
+            height: self.height,
+            node: self.node,
+            phantom: PhantomData,
+        }
+    }
+}
+
 impl<K, V> NodeRef<K, V, marker::Leaf> {
     pub fn new_leaf() -> Self {
         Self::from_new_leaf(LeafNode::new())
+    }
+
+    pub fn forget_type(self) -> NodeRef<K, V, marker::LeafOrInternal> {
+        NodeRef {
+            height: self.height,
+            node: self.node,
+            phantom: PhantomData,
+        }
     }
 
     fn from_new_leaf(leaf: Box<LeafNode<K, V>>) -> Self {
@@ -97,6 +150,14 @@ impl<K, V> NodeRef<K, V, marker::Internal> {
         NodeRef {
             height,
             node: node.cast(),
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn forget_type(self) -> NodeRef<K, V, marker::LeafOrInternal> {
+        NodeRef {
+            height: self.height,
+            node: self.node,
             phantom: PhantomData,
         }
     }

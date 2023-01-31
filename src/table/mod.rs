@@ -12,7 +12,7 @@ use parking_lot::RwLock;
 use self::{page::partition::PartitionHandle, stats::TableStats};
 use crate::{
     catalog::schema::Schema,
-    datatypes::record::{new_record_id, Record, RecordId},
+    common::record::{new_record_id, Record, RecordId},
     error::{Error, Result},
 };
 

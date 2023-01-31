@@ -1,7 +1,6 @@
-use std::marker::PhantomData;
+use std::{borrow::Borrow, marker::PhantomData};
 
 use super::node::{marker, NodeRef, Root};
-use crate::datatypes::record::RecordId;
 
 /// A B+ tree builder.
 ///
@@ -47,17 +46,20 @@ impl<K, V> Tree<K, V> {}
 
 impl<K, V> Tree<K, V> {
     /// Returns the value associated with `key`.
-    pub fn get(&self, key: K) -> Option<RecordId> {
+    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
+    {
         // type check.
 
         // todo(project4_integration)
 
         // todo(project2)
-
         None
     }
 
-    pub fn scan(&self, key: K) -> Option<Vec<RecordId>> {
+    pub fn scan(&self, key: K) -> Option<Vec<V>> {
         // todo(project4_integration)
 
         // todo(project2)
@@ -68,21 +70,24 @@ impl<K, V> Tree<K, V> {
     /// Inserts a (key, rid) pair into a B+ tree. If the key already exists
     /// in the B+ tree, then the pair is not inserted and an exception is
     /// raised.
-    pub fn put(&self, key: K, id: RecordId) {
+    pub fn put(&self, key: K, value: V)
+    where
+        K: Ord,
+    {
         // todo(project4_integration)
 
         // todo(project2)
     }
 
     /// Deletes a (key, rid) pair from a B+ tree.
-    pub fn remove(&self, k: K) {
+    pub fn remove<Q: ?Sized>(&self, key: &Q)
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
+    {
         // todo(project4_integration)
 
         // todo(project2)
-    }
-
-    pub fn bulk_load(&self) {
-        todo!()
     }
 }
 

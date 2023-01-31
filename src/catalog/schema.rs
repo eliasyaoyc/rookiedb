@@ -1,4 +1,4 @@
-use crate::{datatypes::record::Record, error::Result};
+use crate::{common::record::Record, error::Result};
 
 #[derive(Debug)]
 pub struct Schema {}

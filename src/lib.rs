@@ -5,8 +5,8 @@
 use std::fmt::Debug;
 
 mod catalog;
+mod common;
 mod database;
-mod datatypes;
 pub mod error;
 pub mod query;
 mod table;

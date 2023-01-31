@@ -8,7 +8,7 @@ use async_fs::File;
 use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 use self::manager::DEFAULT_PAGE_SIZE;
-use crate::{datatypes::record::Record, error::Result};
+use crate::{common::record::Record, error::Result};
 
 pub(crate) struct PageFile(pub(crate) File);
 
@@ -89,11 +89,7 @@ impl<Type> PageRef<Type> {
 
     // Insert record, if record is exist then update value, otherwise insert
     // directly.
-    pub(crate) async fn insert_record(
-        &self,
-        _entry_num: usize,
-        _record: crate::datatypes::record::Record,
-    ) -> Result<()> {
+    pub(crate) async fn insert_record(&self, _entry_num: usize, _record: Record) -> Result<()> {
         todo!()
     }
 
