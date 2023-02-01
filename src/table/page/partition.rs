@@ -41,7 +41,7 @@ pub struct PartitionHandle {
 
 impl PartitionHandle {
     /// Opens the OS file and loads master and header pages.
-    pub(crate) async fn open(
+    pub async fn open(
         part_num: usize,
         root: &str,
         empty_page_metadata_size: usize,
@@ -103,7 +103,7 @@ impl PartitionHandle {
     }
 
     /// Allocates a new page in the partition.
-    pub(crate) async fn alloc_page(&mut self) -> Result<usize> {
+    pub async fn alloc_page(&mut self) -> Result<usize> {
         match self.m_bitmap.vacance() {
             None => Err(Error::Corrupted(
                 "partition has reached max size.".to_owned(),
@@ -117,7 +117,7 @@ impl PartitionHandle {
         }
     }
 
-    pub(crate) async fn alloc_page_with_index(
+    pub async fn alloc_page_with_index(
         &mut self,
         header_index: usize,
         page_index: usize,
@@ -147,7 +147,7 @@ impl PartitionHandle {
     }
 
     /// Release all data pages from partition for use.
-    pub(crate) async fn release_data_pages(&mut self) -> Result<()> {
+    pub async fn release_data_pages(&mut self) -> Result<()> {
         let mut needs_freed_page_idx = vec![];
         let mut needs_freed_header_idx = vec![];
         for h in self.m_bitmap.iter() {
@@ -169,7 +169,7 @@ impl PartitionHandle {
     }
 
     /// Releases a page in partition from use.
-    pub(crate) async fn release_page(&mut self, page_num: usize) -> Result<()> {
+    pub async fn release_page(&mut self, page_num: usize) -> Result<()> {
         let (header_index, page_index) = (
             (page_num / DATA_PAGES_PER_HEADER),
             (page_num % DATA_PAGES_PER_HEADER),
@@ -202,7 +202,7 @@ impl PartitionHandle {
     }
 
     /// Reads in a data page. Assumes that the partition lock is held.
-    pub(crate) async fn read_page(&mut self, page_num: usize, output: &mut [u8]) -> Result<()> {
+    pub async fn read_page(&mut self, page_num: usize, output: &mut [u8]) -> Result<()> {
         assert!(
             !self.is_not_allocated_page(page_num),
             "page {} is not allocated",
@@ -216,7 +216,7 @@ impl PartitionHandle {
     }
 
     /// Writes to a data page. Assumes that the partition lock is held.
-    pub(crate) async fn write_page(&mut self, page_num: usize, buf: &[u8]) -> Result<()> {
+    pub async fn write_page(&mut self, page_num: usize, buf: &[u8]) -> Result<()> {
         assert!(
             !self.is_not_allocated_page(page_num),
             "page {} is not allocated",
@@ -232,7 +232,7 @@ impl PartitionHandle {
 
     /// Writes the master page to disk, because the default page size of 4kb, so
     /// we put 1bit of bitmap as 2bits.
-    pub(crate) fn write_master_page(bitmap: &Bitmap) -> Vec<u8> {
+    pub fn write_master_page(bitmap: &Bitmap) -> Vec<u8> {
         let mut buf = vec![0u8; DEFAULT_PAGE_SIZE];
         (0..MAX_HEADER_PAGES).for_each(|index| {
             let v = if bitmap.exist(index as u32) {
@@ -246,7 +246,7 @@ impl PartitionHandle {
     }
 
     /// Writes the header page to disk.
-    pub(crate) fn write_header_page(bitmap: &Bitmap) -> Vec<u8> {
+    pub fn write_header_page(bitmap: &Bitmap) -> Vec<u8> {
         let mut buf = vec![0u8; DEFAULT_PAGE_SIZE];
         (0..DEFAULT_PAGE_SIZE).for_each(|index| {
             let v = if bitmap.exist(index as u32) { 1u8 } else { 0u8 };
@@ -256,7 +256,7 @@ impl PartitionHandle {
     }
 
     /// Checks if page number is for an unallocated data.
-    pub(crate) fn is_not_allocated_page(&self, page_num: usize) -> bool {
+    pub fn is_not_allocated_page(&self, page_num: usize) -> bool {
         let (header_index, page_index) = (
             (page_num / DATA_PAGES_PER_HEADER),
             (page_num % DATA_PAGES_PER_HEADER),
@@ -273,7 +273,7 @@ impl PartitionHandle {
     }
 
     /// Gets page.
-    pub(crate) async fn get_page(&mut self, page_num: u64) -> Result<PageRef<marker::Data>> {
+    pub async fn get_page(&mut self, page_num: u64) -> Result<PageRef<marker::Data>> {
         // Return header page if exist in page cache.
         if let Some(entry) = self.cache.lookup(page_num) {
             // return page;
@@ -301,7 +301,7 @@ impl PartitionHandle {
         Ok(data_page)
     }
 
-    pub(crate) async fn get_page_with_space(&self, required_space: usize) -> PageRef<marker::Data> {
+    pub async fn get_page_with_space(&self, required_space: usize) -> PageRef<marker::Data> {
         assert!(
             required_space > 0,
             "can't request nonpositive amount of space."
@@ -325,7 +325,7 @@ impl PartitionHandle {
     }
 
     /// Returns how many data pages in current partition.
-    pub(crate) fn get_num_data_pages(self) -> usize {
+    pub fn get_num_data_pages(self) -> usize {
         self.first_header
             .as_header_page()
             .iter()
@@ -333,7 +333,7 @@ impl PartitionHandle {
             .sum()
     }
 
-    pub(crate) fn part_num(&self) -> usize {
+    pub fn part_num(&self) -> usize {
         self.part_num
     }
 }

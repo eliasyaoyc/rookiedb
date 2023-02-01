@@ -13,30 +13,30 @@ use crate::{
 };
 
 /// The default size of the page is 4KB.
-pub(crate) const DEFAULT_PAGE_SIZE: usize = 4 * 1024;
+pub const DEFAULT_PAGE_SIZE: usize = 4 * 1024;
 
-pub(crate) const MAX_HEADER_PAGES: usize = DEFAULT_PAGE_SIZE / 2;
+pub const MAX_HEADER_PAGES: usize = DEFAULT_PAGE_SIZE / 2;
 
-pub(crate) const DATA_PAGES_PER_HEADER: usize = DEFAULT_PAGE_SIZE * 8;
+pub const DATA_PAGES_PER_HEADER: usize = DEFAULT_PAGE_SIZE * 8;
 
 /// The size of header in header pages.
 /// 1-byte  : check page is valid.
 /// 4-bytes : page group id.
 /// 8-bytes : next header page offset.
-pub(crate) const HEADER_HEADER_SIZE: usize = 13;
+pub const HEADER_HEADER_SIZE: usize = 13;
 
 /// The size of header in data pages.
-pub(crate) const DATA_HEADER_SIZE: usize = 10;
+pub const DATA_HEADER_SIZE: usize = 10;
 
 /// The size of data entry.
 /// 8-bytes : data page offset.
 /// 2-bytes : free space in current data page.
-pub(crate) const DATA_ENTRY_SIZE: usize = 10;
+pub const DATA_ENTRY_SIZE: usize = 10;
 
 /// Reserve 36 bytes on each page for bookkeeping for recovery
 /// (used to store the pageLSN, and to ensure that a redo-only/undo-only log
 /// record can fit on one page).
-pub(crate) const RESERVED_SIZE: usize = 36;
+pub const RESERVED_SIZE: usize = 36;
 
 /// An implementation of a heap file, using a page group. Assumes data pages
 /// are packed (but record lengths do not need to be fixed-length).
@@ -61,7 +61,7 @@ pub struct PageManager {
 /// private methods.
 impl PageManager {
     #[inline]
-    pub(crate) fn set_empty_page_metadata_size(&mut self, empty_page_metadata_size: usize) {
+    pub fn set_empty_page_metadata_size(&mut self, empty_page_metadata_size: usize) {
         self.empty_page_metadata_size = effective_page_size() - empty_page_metadata_size;
     }
 
@@ -103,12 +103,12 @@ impl PageManager {
     }
 
     /// Allocates a new partition, Returns number of new partition.
-    pub(crate) async fn alloc_part(&mut self) -> Result<usize> {
+    pub async fn alloc_part(&mut self) -> Result<usize> {
         let part_num = self.partition_counter.fetch_add(1, Ordering::Release);
         self.inner_alloc_part(part_num).await
     }
 
-    pub(crate) async fn alloc_part_with_num(&mut self, part_num: usize) -> Result<usize> {
+    pub async fn alloc_part_with_num(&mut self, part_num: usize) -> Result<usize> {
         let num = self.partition_counter.load(Ordering::Acquire);
         let new_num = if part_num > num { part_num } else { num } + 1;
 
@@ -127,7 +127,7 @@ impl PageManager {
     }
 
     /// Release a partition from use.
-    pub(crate) async fn release_part(&mut self, part_num: usize) -> Result<()> {
+    pub async fn release_part(&mut self, part_num: usize) -> Result<()> {
         let mut part = self
             .partitions
             .remove(&part_num)
@@ -144,7 +144,7 @@ impl PageManager {
     }
 
     /// Allocates a new page, Return virtual page number of new page.
-    pub(crate) async fn alloc_page_with_part(&self, part_num: usize) -> Result<u64> {
+    pub async fn alloc_page_with_part(&self, part_num: usize) -> Result<u64> {
         let mut ph = self.get_partition(part_num)?;
 
         let page_num = ph.alloc_page().await?;
@@ -152,7 +152,7 @@ impl PageManager {
         Ok(virtual_page_num(part_num, page_num))
     }
 
-    pub(crate) async fn alloc_page(&self, page: u64) -> Result<u64> {
+    pub async fn alloc_page(&self, page: u64) -> Result<u64> {
         let (part_num, page_num) = (calculate_part_num(page), calculate_page_num(page));
         let (header_index, page_index) = (
             page_num / DATA_PAGES_PER_HEADER,
@@ -167,7 +167,7 @@ impl PageManager {
     }
 
     /// Release a page from use.
-    pub(crate) async fn release_page(&self, page: u64) -> Result<()> {
+    pub async fn release_page(&self, page: u64) -> Result<()> {
         let (part_num, page_num) = (calculate_part_num(page), calculate_page_num(page));
 
         let mut ph = self.get_partition(part_num)?;
@@ -176,7 +176,7 @@ impl PageManager {
     }
 
     /// Checks if a page if allocated.
-    pub(crate) async fn is_page_allocated(&self, page: u64) -> bool {
+    pub async fn is_page_allocated(&self, page: u64) -> bool {
         let (part_num, page_num) = (calculate_part_num(page), calculate_page_num(page));
 
         match self.partitions.get(&part_num) {
@@ -186,20 +186,20 @@ impl PageManager {
     }
 
     /// Gets partition from partition number.
-    pub(crate) fn get_partition(&self, part_num: usize) -> Result<RefMut<usize, PartitionHandle>> {
+    pub fn get_partition(&self, part_num: usize) -> Result<RefMut<usize, PartitionHandle>> {
         self.partitions
             .get_mut(&part_num)
             .ok_or(Error::NotFound(format!("partition number {}", part_num)))
     }
 
     /// Reads a page(page parameters is virtual offset).
-    pub(crate) async fn read_page(&self, page: u64) -> Result<Vec<u8>> {
+    pub async fn read_page(&self, page: u64) -> Result<Vec<u8>> {
         let mut data = vec![];
         self.read_page_to(page, &mut data).await?;
         Ok(data)
     }
 
-    pub(crate) async fn read_page_to(&self, page: u64, target: &mut [u8]) -> Result<()> {
+    pub async fn read_page_to(&self, page: u64, target: &mut [u8]) -> Result<()> {
         assert!(
             target.len() == DEFAULT_PAGE_SIZE,
             "read page expects a 4kb, but got {}",
@@ -213,7 +213,7 @@ impl PageManager {
     }
 
     /// Writes to a page.
-    pub(crate) async fn write_page(&self, page: u64, data: &[u8]) -> Result<()> {
+    pub async fn write_page(&self, page: u64, data: &[u8]) -> Result<()> {
         assert!(
             data.len() == DEFAULT_PAGE_SIZE,
             "write page expects a 4kb, but got {}",
@@ -229,18 +229,18 @@ impl PageManager {
 
 /// Returns the number of data page entries in a header page.
 #[inline]
-pub(crate) fn header_entry_count() -> usize {
+pub fn header_entry_count() -> usize {
     (effective_page_size() - HEADER_HEADER_SIZE) / DATA_HEADER_SIZE
 }
 
 /// Returns the effective page size.
 #[inline]
-pub(crate) fn effective_page_size() -> usize {
+pub fn effective_page_size() -> usize {
     DEFAULT_PAGE_SIZE - RESERVED_SIZE
 }
 
 #[inline]
-pub(crate) fn virtual_header_page_offset(header_index: usize) -> u64 {
+pub fn virtual_header_page_offset(header_index: usize) -> u64 {
     // Consider the layout if we had 4 data pages per header:
     // Offset (in pages):  0  1  2  3  4  5  6  7  8  9 10 11
     // Page Type:         [M][H][D][D][D][D][H][D][D][D][D][H]...
@@ -254,7 +254,7 @@ pub(crate) fn virtual_header_page_offset(header_index: usize) -> u64 {
 }
 
 #[inline]
-pub(crate) fn virtual_data_page_offset(page_num: usize) -> u64 {
+pub fn virtual_data_page_offset(page_num: usize) -> u64 {
     // Consider the layout if we had 4 data pages per header:
     // Offset (in pages):  0  1  2  3  4  5  6  7  8  9 10
     // Page Type:         [M][H][D][D][D][D][H][D][D][D][D]
@@ -272,19 +272,19 @@ pub(crate) fn virtual_data_page_offset(page_num: usize) -> u64 {
 
 /// Gets partition number from virtual page number.
 #[inline]
-pub(crate) fn calculate_part_num(virtial_page_num: u64) -> usize {
+pub fn calculate_part_num(virtial_page_num: u64) -> usize {
     (virtial_page_num / 10000000000) as usize
 }
 
 /// Gets data page number from virtual page number.
 #[inline]
-pub(crate) fn calculate_page_num(virtial_page_num: u64) -> usize {
+pub fn calculate_page_num(virtial_page_num: u64) -> usize {
     (virtial_page_num % 10000000000) as usize
 }
 
 /// Returns the virtual page number given partition/data page number.
 #[inline]
-pub(crate) fn virtual_page_num(part_num: usize, page_num: usize) -> u64 {
+pub fn virtual_page_num(part_num: usize, page_num: usize) -> u64 {
     (part_num * 10000000000 + page_num) as u64
 }
 

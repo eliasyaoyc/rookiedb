@@ -1,10 +1,10 @@
 mod bg;
 mod cache;
-pub(crate) mod index;
+pub mod index;
 mod manifest;
-pub(crate) mod metadata;
-pub(crate) mod page;
-pub(crate) mod recover;
+pub mod metadata;
+pub mod page;
+pub mod recover;
 mod stats;
 
 use parking_lot::RwLock;
@@ -137,7 +137,7 @@ impl Table {
     /// if the first free page has  bitmao 0b11101000, then the record is
     /// inserted into the page with index 3 and the bitmap is update to
     /// 0b11111000.
-    pub(crate) async fn insert(&self, record: Record) -> Result<RecordId> {
+    pub async fn insert(&self, record: Record) -> Result<RecordId> {
         // Verify that the record whether valid. For example field value or field type.
         let schema = &self.schema;
         let record = schema.verify_record(record)?;
@@ -168,7 +168,7 @@ impl Table {
 
     /// Retrieves a record from the table, throwing an exception if no such
     /// record exists.
-    pub(crate) async fn get(&mut self, id: RecordId) -> Result<Record> {
+    pub async fn get(&mut self, id: RecordId) -> Result<Record> {
         assert!(id.1 > 0 && id.1 < self.num_records_per_page);
 
         let page = self.part_handle.get_page(id.0).await?;
@@ -183,11 +183,7 @@ impl Table {
     /// Updates an existing record with new values and returns the existing
     /// record. stats is updated accordingly. An exception is thrown if
     /// recordId does not correspond to and existing record in the table.
-    pub(crate) async fn update(
-        &mut self,
-        old_record_id: RecordId,
-        updated: Record,
-    ) -> Result<Record> {
+    pub async fn update(&mut self, old_record_id: RecordId, updated: Record) -> Result<Record> {
         let entry_num = old_record_id.1;
         assert!(entry_num > 0 && entry_num < self.num_records_per_page);
 
@@ -212,7 +208,7 @@ impl Table {
     /// updates stats, freePageNums and numRecords as necessary. An
     /// exception is thrown if recordId dose not correspond to an existing
     /// record in the table.
-    pub(crate) async fn remove(&mut self, id: RecordId) -> Result<Record> {
+    pub async fn remove(&mut self, id: RecordId) -> Result<Record> {
         assert!(id.1 > 0 && id.1 < self.num_records_per_page);
 
         let mut page = self.part_handle.get_page(id.0).await?;

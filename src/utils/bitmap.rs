@@ -1,19 +1,19 @@
 /// A simple fixed size bitmap.
 #[derive(Clone)]
-pub(crate) struct Bitmap {
+pub struct Bitmap {
     cap: u32,
     len: u32,
     bits: Vec<u64>,
 }
 
-pub(crate) struct BitmapIter<'a> {
+pub struct BitmapIter<'a> {
     bitmap: &'a Bitmap,
     key: usize,
     value: u64,
 }
 
 impl Bitmap {
-    pub(crate) fn new(cap: u32) -> Self {
+    pub fn new(cap: u32) -> Self {
         let size = match cap % 64 {
             0 => cap / 64,
             _ => cap / 64 + 1,
@@ -23,7 +23,7 @@ impl Bitmap {
     }
 
     /// Set the corresponding bit.
-    pub(crate) fn set(&mut self, index: u32) -> bool {
+    pub fn set(&mut self, index: u32) -> bool {
         let (key, bit) = (key(index), bit(index));
         let old_w = self.bits[key];
         let new_w = old_w | 1 << bit;
@@ -34,7 +34,7 @@ impl Bitmap {
     }
 
     /// Clear the corresponding bit.
-    pub(crate) fn clear(&mut self, index: u32) -> bool {
+    pub fn clear(&mut self, index: u32) -> bool {
         let (key, bit) = (key(index), bit(index));
         let old_w = self.bits[key];
         let new_w = old_w & !(1 << bit);
@@ -45,20 +45,20 @@ impl Bitmap {
     }
 
     /// Whether the specified bit is set.
-    pub(crate) fn exist(&self, index: u32) -> bool {
+    pub fn exist(&self, index: u32) -> bool {
         let (key, bit) = (key(index), bit(index));
         self.bits[key] & (1 << bit) != 0
     }
 
     /// Return the index of unset bit(from 0 start).
     #[inline]
-    pub(crate) fn vacance(&self) -> Option<u32> {
+    pub fn vacance(&self) -> Option<u32> {
         (0..self.cap).into_iter().find(|&idx| !self.exist(idx))
     }
 
     /// Returns the number of unset bits.
     #[inline]
-    pub(crate) fn free(&self) -> u32 {
+    pub fn free(&self) -> u32 {
         self.cap
             .checked_sub(self.len)
             .expect("The len does not exceed the capacity")
@@ -67,30 +67,30 @@ impl Bitmap {
     /// Returns the number of set bits.
     #[inline]
     #[allow(unused)]
-    pub(crate) fn len(&self) -> u32 {
+    pub fn len(&self) -> u32 {
         self.len
     }
 
     /// Returns the total bits.
     #[inline]
     #[allow(unused)]
-    pub(crate) fn cap(&self) -> u32 {
+    pub fn cap(&self) -> u32 {
         self.cap
     }
 
     #[inline]
-    pub(crate) fn is_full(&self) -> bool {
+    pub fn is_full(&self) -> bool {
         self.len == self.cap
     }
 
     #[inline]
     #[allow(unused)]
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 
     #[inline]
-    pub(crate) fn iter(&self) -> BitmapIter {
+    pub fn iter(&self) -> BitmapIter {
         BitmapIter::new(self)
     }
 }

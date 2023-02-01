@@ -10,7 +10,7 @@ bitflags! {
      }
 }
 
-pub(crate) fn compress<'a>(
+pub fn compress<'a>(
     compression: Compression,
     raw: &'a [u8],
     compress_buf: &'a mut [u8],
@@ -38,7 +38,7 @@ pub(crate) fn compress<'a>(
     }
 }
 
-pub(crate) fn decompress_into(
+pub fn decompress_into(
     compression: Compression,
     source: &[u8],
     target: &mut Vec<u8>,

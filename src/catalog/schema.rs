@@ -17,7 +17,7 @@ impl Schema {
     /// - String's of the wrong size are cast to the expected size of the
     ///   schame.
     /// - Int's will be cast to floats if a float is expected.
-    pub(crate) fn verify_record(&self, record: Record) -> Result<Record> {
+    pub fn verify_record(&self, record: Record) -> Result<Record> {
         todo!()
     }
 }

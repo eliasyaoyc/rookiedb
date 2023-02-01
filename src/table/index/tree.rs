@@ -37,7 +37,7 @@ pub struct Tree<K, V> {
 
 impl<K, V> Drop for Tree<K, V> {
     fn drop(&mut self) {
-        drop(unsafe { (std::ptr::read(self)) }.into_iter())
+        drop(unsafe { std::ptr::read(self) }.into_iter())
     }
 }
 

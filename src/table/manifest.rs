@@ -29,7 +29,7 @@ pub enum ManifestEntry {
 pub struct Manifest {}
 
 impl Manifest {
-    pub(crate) async fn open(_path: &Path) -> Result<Manifest> {
+    pub async fn open(_path: &Path) -> Result<Manifest> {
         todo!()
     }
 }

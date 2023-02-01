@@ -1,4 +1,4 @@
-pub(crate) mod schema;
+pub mod schema;
 use std::collections::HashMap;
 
 use self::schema::Schema;

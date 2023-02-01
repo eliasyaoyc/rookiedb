@@ -1,3 +1,1 @@
-pub(crate) struct LruEvictor {
-     
-}
+pub struct LruEvictor {}

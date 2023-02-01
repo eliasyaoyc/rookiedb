@@ -1,6 +1,6 @@
-pub(crate) mod manager;
-pub(crate) mod partition;
-pub(crate) mod reader;
+pub mod manager;
+pub mod partition;
+pub mod reader;
 
 use std::{io::SeekFrom, marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
 
@@ -10,18 +10,18 @@ use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use self::manager::DEFAULT_PAGE_SIZE;
 use crate::{common::record::Record, error::Result};
 
-pub(crate) struct PageFile(pub(crate) File);
+pub struct PageFile(pub File);
 
 impl PageFile {
     #[inline]
-    pub(crate) async fn read(&mut self, ouput: &mut [u8]) -> Result<()> {
+    pub async fn read(&mut self, ouput: &mut [u8]) -> Result<()> {
         self.0.read(ouput).await?;
         self.0.seek(SeekFrom::Start(0)).await?;
         Ok(())
     }
 
     #[inline]
-    pub(crate) async fn read_from(&mut self, offset: u64, ouput: &mut [u8]) -> Result<()> {
+    pub async fn read_from(&mut self, offset: u64, ouput: &mut [u8]) -> Result<()> {
         self.0.seek(SeekFrom::Start(offset)).await?;
         self.0.read(ouput).await?;
         self.0.seek(SeekFrom::Start(0)).await?;
@@ -29,14 +29,14 @@ impl PageFile {
     }
 
     #[inline]
-    pub(crate) async fn write_to(&mut self, offset: u64, buf: &[u8]) -> Result<()> {
+    pub async fn write_to(&mut self, offset: u64, buf: &[u8]) -> Result<()> {
         self.0.seek(SeekFrom::Start(offset)).await?;
         self.0.write(buf).await?;
         Ok(())
     }
 
     #[inline]
-    pub(crate) async fn write_to_f<F>(&mut self, offset: u64, f: F) -> Result<()>
+    pub async fn write_to_f<F>(&mut self, offset: u64, f: F) -> Result<()>
     where
         F: FnOnce() -> Vec<u8>,
     {
@@ -46,7 +46,7 @@ impl PageFile {
     }
 
     #[inline]
-    pub(crate) async fn write_f<F>(&mut self, f: F) -> Result<()>
+    pub async fn write_f<F>(&mut self, f: F) -> Result<()>
     where
         F: FnOnce() -> Vec<u8>,
     {
@@ -79,71 +79,71 @@ impl<Type> Clone for PageRef<Type> {
 
 // Header/Data Page common methods.
 impl<Type> PageRef<Type> {
-    pub(crate) async fn get_idle_entry_num(&self) -> Result<usize> {
+    pub async fn get_idle_entry_num(&self) -> Result<usize> {
         todo!()
     }
 
-    pub(crate) fn get_page_num(&self) -> u64 {
+    pub fn get_page_num(&self) -> u64 {
         todo!()
     }
 
     // Insert record, if record is exist then update value, otherwise insert
     // directly.
-    pub(crate) async fn insert_record(&self, _entry_num: usize, _record: Record) -> Result<()> {
+    pub async fn insert_record(&self, _entry_num: usize, _record: Record) -> Result<()> {
         todo!()
     }
 
-    pub(crate) async fn remove_record(&self, _id: usize) -> Result<Record> {
+    pub async fn remove_record(&self, _id: usize) -> Result<Record> {
         todo!()
     }
 
-    pub(crate) async fn read_to_record(&self, _offset: usize) -> Result<Record> {
+    pub async fn read_to_record(&self, _offset: usize) -> Result<Record> {
         todo!()
     }
 
-    pub(crate) async fn update_free_space(&mut self, _freed_space: usize) -> Result<()> {
+    pub async fn update_free_space(&mut self, _freed_space: usize) -> Result<()> {
         Ok(())
     }
 
-    pub(crate) fn num_records(&self) -> u16 {
+    pub fn num_records(&self) -> u16 {
         self.as_data_page().len
     }
 }
 
 /// Convert to data page.
 impl<'a, Type> PageRef<Type> {
-    pub(crate) fn as_data_page(&self) -> &DataPage {
+    pub fn as_data_page(&self) -> &DataPage {
         let ptr = Self::as_data_page_ptr(self);
         unsafe { &*ptr }
     }
 
-    pub(crate) fn as_data_page_mut(&mut self) -> &mut DataPage {
+    pub fn as_data_page_mut(&mut self) -> &mut DataPage {
         let ptr = Self::as_data_page_ptr(self);
         unsafe { &mut *ptr }
     }
 
-    pub(crate) fn into_data_page(self) -> &'a DataPage {
+    pub fn into_data_page(self) -> &'a DataPage {
         let ptr = Self::as_data_page_ptr(&self);
         unsafe { &*ptr }
     }
 
-    pub(crate) fn into_data_page_mut(self) -> &'a mut DataPage {
+    pub fn into_data_page_mut(self) -> &'a mut DataPage {
         let ptr = Self::as_data_page_ptr(&self);
         unsafe { &mut *ptr }
     }
 
-    pub(crate) fn as_data_page_ptr(this: &Self) -> *mut DataPage {
+    pub fn as_data_page_ptr(this: &Self) -> *mut DataPage {
         this.page.as_ptr()
     }
 }
 
-pub(crate) enum ForceResult<Header, Data> {
+pub enum ForceResult<Header, Data> {
     Header(Header),
     Data(Data),
 }
 impl PageRef<marker::HeaderOrData> {
     /// Checks whether a page is an `Header` page or a `Data` page.
-    pub(crate) fn force(self) -> ForceResult<PageRef<marker::Header>, PageRef<marker::Data>> {
+    pub fn force(self) -> ForceResult<PageRef<marker::Header>, PageRef<marker::Data>> {
         if self.is_header {
             ForceResult::Header(PageRef {
                 is_header: true,
@@ -161,7 +161,7 @@ impl PageRef<marker::HeaderOrData> {
 
     /// Unsafely asserts to the compiler the static information that this page
     /// is a `Header`
-    pub(crate) unsafe fn cast_to_header_page_unchecked(self) -> PageRef<marker::Header> {
+    pub unsafe fn cast_to_header_page_unchecked(self) -> PageRef<marker::Header> {
         PageRef {
             page: self.page,
             _marker: PhantomData,
@@ -171,7 +171,7 @@ impl PageRef<marker::HeaderOrData> {
 
     /// Unsafely asserts to the compiler the static information that this page
     /// is a `Data`
-    pub(crate) unsafe fn cast_to_data_page_unchecked(self) -> PageRef<marker::Data> {
+    pub unsafe fn cast_to_data_page_unchecked(self) -> PageRef<marker::Data> {
         PageRef {
             page: self.page,
             _marker: PhantomData,
@@ -182,7 +182,7 @@ impl PageRef<marker::HeaderOrData> {
 
 // Header-Page proprietary methods.
 impl PageRef<marker::Header> {
-    pub(crate) fn new_header_page(page_num: usize, header_offset: usize, first: bool) -> Self {
+    pub fn new_header_page(page_num: usize, header_offset: usize, first: bool) -> Self {
         Self {
             page: NonNull::from(Box::leak(HeaderPage::new(page_num, header_offset, first))).cast(),
             _marker: PhantomData,
@@ -191,7 +191,7 @@ impl PageRef<marker::Header> {
     }
 
     /// Unpack a page reference that was packed as `PageRef::parent`.
-    pub(crate) fn from_header_page(page: NonNull<HeaderPage>) -> Self {
+    pub fn from_header_page(page: NonNull<HeaderPage>) -> Self {
         PageRef {
             page: page.cast(),
             _marker: PhantomData,
@@ -199,7 +199,7 @@ impl PageRef<marker::Header> {
         }
     }
 
-    pub(crate) fn forget_type(&self) -> PageRef<marker::HeaderOrData> {
+    pub fn forget_type(&self) -> PageRef<marker::HeaderOrData> {
         PageRef {
             page: self.page,
             _marker: PhantomData,
@@ -207,28 +207,28 @@ impl PageRef<marker::Header> {
         }
     }
 
-    pub(crate) fn as_header_page(&self) -> &HeaderPage {
+    pub fn as_header_page(&self) -> &HeaderPage {
         let ptr = Self::as_header_page_ptr(self);
         unsafe { &*ptr }
     }
 
-    pub(crate) fn as_header_page_mut(&mut self) -> &mut HeaderPage {
+    pub fn as_header_page_mut(&mut self) -> &mut HeaderPage {
         let ptr = Self::as_header_page_ptr(self);
         unsafe { &mut *ptr }
     }
 
-    pub(crate) fn as_header_page_ptr(this: &Self) -> *mut HeaderPage {
+    pub fn as_header_page_ptr(this: &Self) -> *mut HeaderPage {
         this.page.as_ptr() as *mut HeaderPage
     }
 }
 
 impl<'a> PageRef<marker::Header> {
-    pub(crate) fn into_header_page(self) -> &'a HeaderPage {
+    pub fn into_header_page(self) -> &'a HeaderPage {
         let ptr = Self::as_header_page_ptr(&self);
         unsafe { &*ptr }
     }
 
-    pub(crate) fn into_header_page_mut(self) -> &'a mut HeaderPage {
+    pub fn into_header_page_mut(self) -> &'a mut HeaderPage {
         let ptr = Self::as_header_page_ptr(&self);
         unsafe { &mut *ptr }
     }
@@ -236,7 +236,7 @@ impl<'a> PageRef<marker::Header> {
 
 // Data-Page proprietary methods.
 impl PageRef<marker::Data> {
-    pub(crate) fn new_data_page() -> Self {
+    pub fn new_data_page() -> Self {
         Self {
             page: NonNull::from(Box::leak(DataPage::new())),
             _marker: PhantomData,
@@ -245,7 +245,7 @@ impl PageRef<marker::Data> {
     }
 
     /// Unpack a page reference that was packed as `PageRef::parent`.
-    pub(crate) fn from_data_page(page: NonNull<DataPage>) -> Self {
+    pub fn from_data_page(page: NonNull<DataPage>) -> Self {
         Self {
             page,
             _marker: PhantomData,
@@ -253,7 +253,7 @@ impl PageRef<marker::Data> {
         }
     }
 
-    pub(crate) fn forget_type(&self) -> PageRef<marker::HeaderOrData> {
+    pub fn forget_type(&self) -> PageRef<marker::HeaderOrData> {
         PageRef {
             page: self.page,
             _marker: PhantomData,
@@ -262,7 +262,7 @@ impl PageRef<marker::Data> {
     }
 
     /// Checks whether page is contains entry.
-    pub(crate) fn contains(&self, _entry_num: usize) -> bool {
+    pub fn contains(&self, _entry_num: usize) -> bool {
         todo!()
     }
 }
@@ -302,12 +302,12 @@ pub struct HeaderPage {
 }
 
 impl HeaderPage {
-    pub(crate) unsafe fn init(this: *mut Self) {
+    pub unsafe fn init(this: *mut Self) {
         std::ptr::addr_of_mut!((*this).next).write(None);
         std::ptr::addr_of_mut!((*this).data_page_nums).write(0);
     }
 
-    pub(crate) fn new(_page_num: usize, _header_offset: usize, _first: bool) -> Box<Self> {
+    pub fn new(_page_num: usize, _header_offset: usize, _first: bool) -> Box<Self> {
         unsafe {
             let mut hp = Box::new_uninit();
             HeaderPage::init(hp.as_mut_ptr());
@@ -316,11 +316,11 @@ impl HeaderPage {
     }
 
     /// Gets and loads a page with the required free space.
-    pub(crate) async fn load_page_with_space(&self, _required_space: usize) -> DataPage {
+    pub async fn load_page_with_space(&self, _required_space: usize) -> DataPage {
         todo!()
     }
 
-    pub(crate) fn iter(&self) -> HeaderPageIter {
+    pub fn iter(&self) -> HeaderPageIter {
         HeaderPageIter {
             next: self.next,
             header_offset: self.header_offset,
@@ -330,7 +330,7 @@ impl HeaderPage {
     }
 }
 
-pub(crate) struct HeaderPageIter {
+pub struct HeaderPageIter {
     next: Option<NonNull<HeaderPage>>,
     header_offset: MaybeUninit<u16>,
 
@@ -364,7 +364,7 @@ pub struct DataPage {
 
 impl DataPage {
     /// Initializes a new `DataPage` in-place.
-    pub(crate) unsafe fn init(this: *mut Self) {
+    pub unsafe fn init(this: *mut Self) {
         // As a general policy, we leave fields uninitialized if they can be, as this
         // should be both slightly faster and easier to track in Valgrind.
 
@@ -374,7 +374,7 @@ impl DataPage {
     }
 
     /// Creates a new boxed `DataPage`.
-    pub(crate) fn new() -> Box<Self> {
+    pub fn new() -> Box<Self> {
         unsafe {
             let mut dp = Box::new_uninit();
             DataPage::init(dp.as_mut_ptr());
@@ -382,7 +382,7 @@ impl DataPage {
         }
     }
 
-    pub(crate) fn fill(&mut self, data: &[u8]) {
+    pub fn fill(&mut self, data: &[u8]) {
         assert!(data.len() == DEFAULT_PAGE_SIZE, "invalid data.");
         unsafe {
             std::ptr::copy_nonoverlapping(

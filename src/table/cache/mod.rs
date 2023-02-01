@@ -3,13 +3,13 @@ use std::collections::LinkedList;
 use self::lru::LruEvictor;
 use super::page::{marker, PageRef};
 
-pub(crate) mod lru;
+pub mod lru;
 
-pub(crate) enum Evictor {
+pub enum Evictor {
     Lru(LruEvictor),
 }
 
-pub(crate) struct CacheEntry {
+pub struct CacheEntry {
     num: u64,
     page: PageRef<marker::HeaderOrData>,
 }
@@ -28,7 +28,7 @@ impl CacheEntry {
     }
 }
 
-pub(crate) struct PageCache {
+pub struct PageCache {
     list: LinkedList<CacheEntry>,
     capacity: usize,
 }
