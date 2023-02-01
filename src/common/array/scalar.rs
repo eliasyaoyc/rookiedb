@@ -30,8 +30,8 @@ pub enum ScalarImpl {
     Int16(i16),
     Int32(i32),
     Int64(i64),
-    Float32(f32),
-    Float64(f64),
+    // Float32(f32),
+    // Float64(f64),
     Bool(bool),
     String(String),
 }
@@ -40,8 +40,8 @@ pub enum ScalarRefImpl<'a> {
     Int16(i16),
     Int32(i32),
     Int64(i64),
-    Float32(f32),
-    Float64(f64),
+    // Float32(f32),
+    // Float64(f64),
     Bool(bool),
     String(&'a str),
 }

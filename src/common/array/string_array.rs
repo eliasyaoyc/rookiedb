@@ -1,7 +1,9 @@
 use bitvec::vec::BitVec;
+use serde::{Deserialize, Serialize};
 
 use super::{iterator::ArrayIterator, Array, ArrayBuilder};
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct StringArray {
     /// The flattened data of string.
     data: Vec<u8>,
@@ -11,6 +13,16 @@ pub struct StringArray {
 
     /// The null bitmap of this array.
     bitmap: BitVec,
+}
+
+impl Clone for StringArray {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            offsets: self.offsets.clone(),
+            bitmap: self.bitmap.clone(),
+        }
+    }
 }
 
 impl Array for StringArray {

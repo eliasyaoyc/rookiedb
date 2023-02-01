@@ -1,4 +1,5 @@
 pub mod expr;
+mod ext;
 pub mod impls;
 pub mod iterator;
 pub mod macros;
@@ -11,8 +12,8 @@ use thiserror::Error;
 use self::{
     iterator::ArrayIterator,
     primitive_array::{
-        BoolArray, BoolArrayBuilder, F32Array, F32ArrayBuilder, F64Array, F64ArrayBuilder,
-        I16Array, I16ArrayBuilder, I32Array, I32ArrayBuilder, I64Array, I64ArrayBuilder,
+        BoolArray, BoolArrayBuilder, I16Array, I16ArrayBuilder, I32Array, I32ArrayBuilder,
+        I64Array, I64ArrayBuilder,
     },
     scalar::{Scalar, ScalarRef},
     string_array::{StringArray, StringArrayBuilder},
@@ -59,12 +60,13 @@ pub trait ArrayBuilder {
     fn finish(self) -> Self::Array;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ArrayImpl {
     Int16(I16Array),
     Int32(I32Array),
     Int64(I64Array),
-    Float32(F32Array),
-    Float64(F64Array),
+    // Float32(F32Array),
+    // Float64(F64Array),
     Bool(BoolArray),
     String(StringArray),
 }
@@ -73,8 +75,8 @@ pub enum ArrayBuilderImpl {
     Int16(I16ArrayBuilder),
     Int32(I32ArrayBuilder),
     Int64(I64ArrayBuilder),
-    Float32(F32ArrayBuilder),
-    Float64(F64ArrayBuilder),
+    // Float32(F32ArrayBuilder),
+    // Float64(F64ArrayBuilder),
     Bool(BoolArrayBuilder),
     String(StringArrayBuilder),
 }
