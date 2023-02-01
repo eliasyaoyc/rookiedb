@@ -15,13 +15,13 @@ pub struct StringArray {
 
 impl Array for StringArray {
     type Builder = StringArrayBuilder;
+    type ItemRef<'a> = &'a str;
     type OwnedItem = String;
 
-    fn get(&self, idx: usize) -> Option<&String> {
+    fn get(&self, idx: usize) -> Option<&str> {
         if self.bitmap[idx] {
             let range = self.offsets[idx]..self.offsets[idx + 1];
-            // Some(unsafe { std::str::from_utf8_unchecked(&self.data[range]) })
-            None
+            Some(unsafe { std::str::from_utf8_unchecked(&self.data[range]) })
         } else {
             None
         }
@@ -60,7 +60,7 @@ impl ArrayBuilder for StringArrayBuilder {
         }
     }
 
-    fn push(&mut self, value: Option<String>) {
+    fn push(&mut self, value: Option<&str>) {
         match value {
             Some(v) => {
                 self.data.extend(v.as_bytes());

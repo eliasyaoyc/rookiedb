@@ -6,7 +6,7 @@ pub struct ArrayIterator<'a, A: Array> {
 }
 
 impl<'a, A: Array> Iterator for ArrayIterator<'a, A> {
-    type Item = Option<&'a A::OwnedItem>;
+    type Item = Option<A::ItemRef<'a>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.array.len() {

@@ -1,8 +1,11 @@
 use bitvec::vec::BitVec;
 
-use super::{Array, ArrayBuilder};
+use super::{
+    scalar::{Scalar, ScalarRef},
+    Array, ArrayBuilder, ArrayImpl, iterator::ArrayIterator,
+};
 
-pub trait PrimitiveType: Sync + Send + Default + 'static {}
+pub trait PrimitiveType: Scalar + Default {}
 
 pub type I16Array = PrimitiveArray<i16>;
 pub type I32Array = PrimitiveArray<i32>;
@@ -33,20 +36,30 @@ pub struct PrimitiveArray<T: PrimitiveType> {
 impl<T> Array for PrimitiveArray<T>
 where
     T: PrimitiveType,
+    T: Scalar<ArrayType = Self>,
+    for<'a> T: ScalarRef<'a, ScalarType = T, ArrayType = Self>,
+    for<'a> T: Scalar<RefType<'a> = T>,
+    Self: Into<ArrayImpl>,
+    Self: TryFrom<ArrayImpl>,
 {
     type Builder = PrimitiveArrayBuilder<T>;
     type OwnedItem = T;
+    type ItemRef<'a> = T;
 
-    fn get(&self, idx: usize) -> Option<&Self::OwnedItem> {
-        todo!()
+    fn get(&self, idx: usize) -> Option<T> {
+        if self.bitmap[idx] {
+            Some(self.data[idx])
+        } else {
+            None
+        }
     }
 
     fn len(&self) -> usize {
-        todo!()
+        self.data.len()
     }
 
-    fn iter(&self) -> super::iterator::ArrayIterator<Self> {
-        todo!()
+    fn iter(&self) -> ArrayIterator<Self> {
+        ArrayIterator::new(self)
     }
 }
 
@@ -58,18 +71,38 @@ pub struct PrimitiveArrayBuilder<T: PrimitiveType> {
 impl<T> ArrayBuilder for PrimitiveArrayBuilder<T>
 where
     T: PrimitiveType,
+    T: Scalar<ArrayType = PrimitiveArray<T>>,
+    for<'a> T: ScalarRef<'a, ScalarType = T, ArrayType = PrimitiveArray<T>>,
+    for<'a> T: Scalar<RefType<'a> = T>,
+    PrimitiveArray<T>: Into<ArrayImpl>,
+    PrimitiveArray<T>: TryFrom<ArrayImpl>,
 {
     type Array = PrimitiveArray<T>;
 
     fn with_capacity(capacity: usize) -> Self {
-        todo!()
+        Self {
+            data: Vec::with_capacity(capacity),
+            bitmap: BitVec::with_capacity(capacity),
+        }
     }
 
     fn push(&mut self, value: Option<T>) {
-        todo!()
+        match value {
+            Some(v) => {
+                self.data.push(v);
+                self.bitmap.push(true);
+            }
+            None => {
+                self.data.push(T::default());
+                self.bitmap.push(false);
+            }
+        }
     }
 
     fn finish(self) -> Self::Array {
-        todo!()
+        PrimitiveArray {
+            data: self.data,
+            bitmap: self.bitmap,
+        }
     }
 }
