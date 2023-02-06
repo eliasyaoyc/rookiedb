@@ -5,6 +5,28 @@ use std::{
 
 use super::{B, CAPACITY};
 
+pub enum Node<K, V> {
+    Leaf(LeafNode<K, V>),
+    Internal(LeafNode<K, V>),
+}
+
+impl<K, V> Node<K, V> {
+    pub fn new_leaf() -> LeafNode<K, V> {
+        LeafNode::new_boxed()
+    }
+
+    pub fn new_internal() -> InternalNode<K, V> {
+        InternalNode::new_boxed()
+    }
+
+    pub is_leaf(&self) -> bool {
+        match self {
+            Node::Leaf(_) => true,
+            _ => false,
+        }
+    }
+}
+
 pub trait Node<K, V> {
     fn split(&mut self);
 
