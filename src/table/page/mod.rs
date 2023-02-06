@@ -1,59 +1,13 @@
-pub mod manager;
+pub mod page_allocator;
+pub mod page_directory;
+pub mod page_file;
 pub mod partition;
 pub mod reader;
 
-use std::{io::SeekFrom, marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
+use std::{marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
 
-use async_fs::File;
-use futures_lite::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-
-use self::manager::DEFAULT_PAGE_SIZE;
+use self::page_directory::DEFAULT_PAGE_SIZE;
 use crate::{common::record::Record, error::Result};
-
-pub struct PageFile(pub File);
-
-impl PageFile {
-    #[inline]
-    pub async fn read(&mut self, ouput: &mut [u8]) -> Result<()> {
-        self.0.read(ouput).await?;
-        self.0.seek(SeekFrom::Start(0)).await?;
-        Ok(())
-    }
-
-    #[inline]
-    pub async fn read_from(&mut self, offset: u64, ouput: &mut [u8]) -> Result<()> {
-        self.0.seek(SeekFrom::Start(offset)).await?;
-        self.0.read(ouput).await?;
-        self.0.seek(SeekFrom::Start(0)).await?;
-        Ok(())
-    }
-
-    #[inline]
-    pub async fn write_to(&mut self, offset: u64, buf: &[u8]) -> Result<()> {
-        self.0.seek(SeekFrom::Start(offset)).await?;
-        self.0.write(buf).await?;
-        Ok(())
-    }
-
-    #[inline]
-    pub async fn write_to_f<F>(&mut self, offset: u64, f: F) -> Result<()>
-    where
-        F: FnOnce() -> Vec<u8>,
-    {
-        self.0.seek(SeekFrom::Start(offset)).await?;
-        self.0.write(&f()).await?;
-        Ok(())
-    }
-
-    #[inline]
-    pub async fn write_f<F>(&mut self, f: F) -> Result<()>
-    where
-        F: FnOnce() -> Vec<u8>,
-    {
-        self.0.write(&f()).await?;
-        Ok(())
-    }
-}
 
 pub mod marker {
     pub enum Header {}
@@ -89,7 +43,7 @@ impl<Type> PageRef<Type> {
 
     // Insert record, if record is exist then update value, otherwise insert
     // directly.
-    pub async fn insert_record(&self, _entry_num: usize, _record: Record) -> Result<()> {
+    pub async fn insert_record(&self, _entry_num: usize, _record: &Record) -> Result<()> {
         todo!()
     }
 
@@ -141,6 +95,7 @@ pub enum ForceResult<Header, Data> {
     Header(Header),
     Data(Data),
 }
+
 impl PageRef<marker::HeaderOrData> {
     /// Checks whether a page is an `Header` page or a `Data` page.
     pub fn force(self) -> ForceResult<PageRef<marker::Header>, PageRef<marker::Data>> {

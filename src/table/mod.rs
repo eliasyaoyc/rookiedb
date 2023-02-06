@@ -7,9 +7,12 @@ pub mod page;
 pub mod recover;
 mod stats;
 
-use parking_lot::RwLock;
+use std::collections::HashMap;
 
-use self::{page::partition::PartitionHandle, stats::TableStats};
+use self::{
+    index::{btree::BTree, btree_builder::BTreeBuilder}, metadata::TableMetadata, page::partition::PartitionHandle,
+    stats::TableStats,
+};
 use crate::{
     catalog::schema::Schema,
     common::record::{new_record_id, Record, RecordId},
@@ -68,10 +71,9 @@ use crate::{
 /// page record may be desirable), and may be explicitly toggled on with the
 /// `set_full_page_records` methods.
 pub struct Table {
-    guard: RwLock<()>,
+    metadata: TableMetadata,
 
-    /// The schema of the table.
-    schema: Schema,
+    indices: HashMap<String, BTree<i32, i32>>,
 
     /// The partition of table.
     part_handle: Box<PartitionHandle>,
@@ -86,6 +88,35 @@ pub struct Table {
     table_stats: TableStats,
 }
 
+/// Index associated method.
+impl Table {
+    async fn initialize_indices(&mut self) -> Result<()> {
+        let indices = self.get_schema().get_indcies();
+        let mut ans = HashMap::with_capacity(indices.len());
+        for index in self.get_schema().get_indcies() {
+            let builder = BTreeBuilder::<i32, i32>::new(index);
+            let btree = builder.finish();
+
+            ans.insert(index.name.clone(), btree);
+        }
+
+        self.indices = ans;
+
+        Ok(())
+    }
+
+    async fn alter_index(&mut self) -> Result<()> {
+        todo!()
+    }
+
+    async fn insert_index_entry(&self, record: &Record) -> Result<()> {
+        todo!()
+    }
+
+    async fn remove_index_entry(&self, record: &Record) -> Result<()> {
+        todo!()
+    }
+}
 impl Table {
     /// Create a new table.
     pub async fn create(
@@ -95,20 +126,25 @@ impl Table {
     ) -> Result<Self> {
         // todo enable cleanup and flush job.
 
-        let table = Table {
-            guard: RwLock::default(),
-            schema,
+        let mut table = Table {
+            indices: HashMap::with_capacity(schema.get_indcies().len()),
+            metadata: TableMetadata::new(schema),
             part_handle,
             num_records_per_page,
             table_stats: TableStats::new(),
             bitmap_size: 0,
         };
 
+        table.initialize_indices().await?;
         Ok(table)
     }
 
-    pub fn schema(&self) -> &Schema {
-        &self.schema
+    pub fn metadata(&self) -> &TableMetadata {
+        &self.metadata
+    }
+
+    pub fn get_schema(&self) -> &Schema {
+        self.metadata.get_schema()
     }
 
     pub fn num_records_per_page(&self) -> usize {
@@ -139,7 +175,7 @@ impl Table {
     /// 0b11111000.
     pub async fn insert(&self, record: Record) -> Result<RecordId> {
         // Verify that the record whether valid. For example field value or field type.
-        let schema = &self.schema;
+        let schema = self.get_schema();
         let record = schema.verify_record(record)?;
 
         let page = self
@@ -159,7 +195,10 @@ impl Table {
         assert!(entry_num < self.num_records_per_page);
 
         // Insert the record and update the bitmap.
-        page.insert_record(entry_num, record).await?;
+        page.insert_record(entry_num, &record).await?;
+
+        // Insert the record to index.
+        self.insert_index_entry(&record).await?;
 
         // Update the metadata.
         // todo stats ...
@@ -168,6 +207,7 @@ impl Table {
 
     /// Retrieves a record from the table, throwing an exception if no such
     /// record exists.
+    // todo needs get record from index of table.
     pub async fn get(&mut self, id: RecordId) -> Result<Record> {
         assert!(id.1 > 0 && id.1 < self.num_records_per_page);
 
@@ -175,7 +215,7 @@ impl Table {
         if !page.contains(id.1) {
             return Err(Error::NotFound("record dose not exist.".to_owned()));
         }
-        let offset = self.bitmap_size + (id.1 * self.schema.estimated_size());
+        let offset = self.bitmap_size + (id.1 * self.get_schema().estimated_size());
 
         page.read_to_record(offset).await
     }
@@ -183,11 +223,12 @@ impl Table {
     /// Updates an existing record with new values and returns the existing
     /// record. stats is updated accordingly. An exception is thrown if
     /// recordId does not correspond to and existing record in the table.
+    // todo needs get record from index of table.
     pub async fn update(&mut self, old_record_id: RecordId, updated: Record) -> Result<Record> {
         let entry_num = old_record_id.1;
         assert!(entry_num > 0 && entry_num < self.num_records_per_page);
 
-        let record = self.schema.verify_record(updated)?;
+        let record = self.get_schema().verify_record(updated)?;
         // If we're updating a record we'll need exclusive access to the page
         // it's on.
         // todo(project_part2): update the following line,
@@ -196,7 +237,10 @@ impl Table {
 
         let old_record = self.get(old_record_id).await?;
 
-        page.insert_record(entry_num, record).await?;
+        page.insert_record(entry_num, &record).await?;
+
+        // Insert the record to index.
+        self.insert_index_entry(&record).await?;
 
         // Update the metadata.
         // todo stats ...
@@ -219,9 +263,12 @@ impl Table {
             1
         } else {
             self.num_records_per_page - page.num_records() as usize
-        } * self.schema.estimated_size();
+        } * self.get_schema().estimated_size();
 
         page.update_free_space(freed_space).await?;
+
+        // Insert the record to index.
+        self.remove_index_entry(&record).await?;
 
         // Update the metadata.
         // todo stats ...

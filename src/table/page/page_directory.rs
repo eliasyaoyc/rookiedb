@@ -4,7 +4,6 @@ use std::{
 };
 
 use dashmap::{mapref::one::RefMut, DashMap};
-use parking_lot::Mutex;
 
 use super::partition::PartitionHandle;
 use crate::{
@@ -40,10 +39,7 @@ pub const RESERVED_SIZE: usize = 36;
 
 /// An implementation of a heap file, using a page group. Assumes data pages
 /// are packed (but record lengths do not need to be fixed-length).
-pub struct PageManager {
-    // epoch: Epoch,
-    guard: Mutex<()>,
-
+pub struct PageDirectory {
     path: String,
 
     /// The page manager id.
@@ -59,7 +55,7 @@ pub struct PageManager {
 }
 
 /// private methods.
-impl PageManager {
+impl PageDirectory {
     #[inline]
     pub fn set_empty_page_metadata_size(&mut self, empty_page_metadata_size: usize) {
         self.empty_page_metadata_size = effective_page_size() - empty_page_metadata_size;
@@ -67,7 +63,6 @@ impl PageManager {
 
     #[inline]
     async fn inner_alloc_part(&mut self, part_num: usize) -> Result<usize> {
-        let _guard = self.guard.lock();
         if self.partitions.contains_key(&part_num) {
             return Err(Error::Corrupted(format!(
                 "allocate partition failed: partition number {} is exist.",
@@ -84,7 +79,7 @@ impl PageManager {
     }
 }
 
-impl PageManager {
+impl PageDirectory {
     /// PartNum: partition to allocate new header pages in (can be different
     /// partition  from data pages)
     /// - 0 represent redo or undo wal-log.
@@ -92,8 +87,7 @@ impl PageManager {
     /// - 2 represent table indices.
     /// - .. represent table header/data page.
     pub fn new(path: String) -> Self {
-        PageManager {
-            guard: Mutex::new(()),
+        PageDirectory {
             page_manager_id: 0,
             empty_page_metadata_size: 0,
             partitions: DashMap::new(),
@@ -286,19 +280,4 @@ pub fn calculate_page_num(virtial_page_num: u64) -> usize {
 #[inline]
 pub fn virtual_page_num(part_num: usize, page_num: usize) -> u64 {
     (part_num * 10000000000 + page_num) as u64
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_alloc_part() {}
-
-    #[test]
-    fn test_alloc_page() {}
-
-    #[test]
-    fn test_write_page() {}
-
-    #[test]
-    fn test_read_page() {}
 }

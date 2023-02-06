@@ -1,27 +1,6 @@
-use std::{borrow::Borrow, marker::PhantomData};
+use std::{borrow::Borrow, marker::PhantomData, ops::RangeBounds};
 
-use super::node::{marker, NodeRef, Root};
-
-/// A B+ tree builder.
-///
-/// # Example
-/// ```rust
-/// let mut builder = TreeBuilder::new();
-/// builder.build();
-/// ```
-pub struct TreeBuilder<K, V> {
-    phantom: PhantomData<(K, V)>,
-}
-
-impl<K, V> TreeBuilder<K, V> {
-    pub fn new() -> Self {
-        unimplemented!()
-    }
-
-    pub fn build(self) -> Tree<K, V> {
-        unimplemented!()
-    }
-}
+use super::node::{NodeRef, Root};
 
 /// A persistent B+ tree.
 ///
@@ -30,57 +9,46 @@ impl<K, V> TreeBuilder<K, V> {
 /// tree.insert();
 /// tree.insert();
 /// ```
-pub struct Tree<K, V> {
-    height: usize,
+pub struct BTree<K, V> {
     root: Option<Root<K, V>>,
+    length: usize,
 }
 
-impl<K, V> Drop for Tree<K, V> {
+impl<K, V> Drop for BTree<K, V> {
     fn drop(&mut self) {
         drop(unsafe { std::ptr::read(self) }.into_iter())
     }
 }
 
 /// private methods.
-impl<K, V> Tree<K, V> {}
+impl<K, V> BTree<K, V> {}
 
-impl<K, V> Tree<K, V> {
+impl<K, V> BTree<K, V> {
     /// Returns the value associated with `key`.
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
     where
         K: Borrow<Q> + Ord,
         Q: Ord,
     {
-        // type check.
-
-        // todo(project4_integration)
-
-        // todo(project2)
-        None
-    }
-
-    pub fn scan(&self, key: K) -> Option<Vec<V>> {
-        // todo(project4_integration)
-
-        // todo(project2)
-
-        None
+        let node = self.root.as_ref()?;
+        node.search_node(key)
     }
 
     /// Inserts a (key, rid) pair into a B+ tree. If the key already exists
     /// in the B+ tree, then the pair is not inserted and an exception is
     /// raised.
-    pub fn put(&self, key: K, value: V)
+    pub fn insert(&self, key: K, value: V) -> Option<V>
     where
         K: Ord,
     {
         // todo(project4_integration)
 
         // todo(project2)
+        todo!()
     }
 
     /// Deletes a (key, rid) pair from a B+ tree.
-    pub fn remove<Q: ?Sized>(&self, key: &Q)
+    pub fn remove<Q: ?Sized>(&self, key: &Q) -> Option<V>
     where
         K: Borrow<Q> + Ord,
         Q: Ord,
@@ -88,6 +56,21 @@ impl<K, V> Tree<K, V> {
         // todo(project4_integration)
 
         // todo(project2)
+
+        todo!()
+    }
+
+    pub fn scan<T: ?Sized, R>(&self, range: R) -> Option<Vec<V>>
+    where
+        T: Ord,
+        K: Borrow<T> + Ord,
+        R: RangeBounds<T>,
+    {
+        // todo(project4_integration)
+
+        // todo(project2)
+
+        None
     }
 }
 
@@ -96,7 +79,7 @@ pub struct IntoIter<K, V> {
 }
 
 impl<K, V> IntoIter<K, V> {
-    fn dying_next(&mut self) -> Option<NodeRef<K, V, marker::LeafOrInternal>> {
+    fn dying_next(&mut self) -> Option<NodeRef<K, V>> {
         None
     }
 }
@@ -131,7 +114,7 @@ impl<K, V> Iterator for IntoIter<K, V> {
     }
 }
 
-impl<K, V> IntoIterator for Tree<K, V> {
+impl<K, V> IntoIterator for BTree<K, V> {
     type IntoIter = IntoIter<K, V>;
     type Item = (K, V);
 

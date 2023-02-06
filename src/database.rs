@@ -4,29 +4,29 @@ use crate::{
     catalog::schema::Schema,
     common::record::{Record, RecordId},
     error::{Error, Result},
+    options::Options,
     table::{
-        page::{manager::PageManager, partition::PartitionHandle},
+        page::{page_directory::PageDirectory, partition::PartitionHandle},
         Table,
     },
-    Options,
 };
 
 /// Database keeps track of transactions, tables and indices and delegates work
 /// to its disk manager, buffer manager, lock manager and recovery manager.
 pub struct Database {
     options: Options,
-    manager: PageManager,
+    page_directory: PageDirectory,
     tables: HashMap<String, Table>,
 }
 
 impl Database {
     pub fn open(options: Options) -> Self {
-        let manager = PageManager::new(options.path.clone());
+        let page_directory = PageDirectory::new(options.path.clone());
 
         Self {
             options,
             tables: HashMap::new(),
-            manager,
+            page_directory,
         }
     }
 
@@ -38,11 +38,11 @@ impl Database {
             )));
         }
 
-        let part_num = self.manager.alloc_part().await?;
+        let part_num = self.page_directory.alloc_part().await?;
 
         // todo optimize.
         let ph = unsafe {
-            let ptr = self.manager.get_partition(part_num)?.value() as *const PartitionHandle
+            let ptr = self.page_directory.get_partition(part_num)?.value() as *const PartitionHandle
                 as *mut PartitionHandle;
             Box::from_raw(ptr)
         };

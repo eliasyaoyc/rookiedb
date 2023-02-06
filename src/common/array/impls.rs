@@ -1,8 +1,29 @@
+use paste::paste;
+
 use crate::common::array::{macros::for_all_variants, scalar::*, *};
 
 macro_rules! impl_array_dispatch {
     ([], $( { $Abc:ident, $abc:ident, $AbcArray:ty, $AbcArrayBuilder:ty, $Owned:ty, $Ref:ty } ),*) => {
         impl ArrayImpl {
+            $(
+                paste! {
+                    /// Create a new array of the corresponding type
+                    pub fn [<new_ $abc>](array: $AbcArray) -> Self {
+                        ArrayImpl::$Abc(array.into())
+                    }
+                }
+            )*
+
+            /// Get the value and convert it to string.
+            pub fn get_to_string(&self, idx: usize) -> String {
+                match self {
+                    $(
+                        Self::$Abc(a) => a.get(idx).map(|v| v.to_string()),
+                    )*
+                }
+                .unwrap_or_else(|| "NULL".into())
+            }
+
             /// Get the value at the given index.
             pub fn get(&self, idx: usize) -> Option<ScalarRefImpl<'_>> {
                 match self {

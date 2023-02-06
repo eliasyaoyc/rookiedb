@@ -1,236 +1,205 @@
 use std::{
-    marker::PhantomData,
-    mem::MaybeUninit,
-    ptr::{self, NonNull},
+    borrow::Borrow, cmp::Ordering, collections::BTreeMap, marker::PhantomData, mem::MaybeUninit,
+    ptr::NonNull,
 };
 
-use self::marker::LeafOrInternal;
+use super::{B, CAPACITY};
 
-const B: usize = 6;
-pub const CAPACITY: usize = 2 * B - 1;
-pub const MIN_LEN_AFTER_SPLIT: usize = B - 1;
-const KV_IDX_CENTER: usize = B - 1;
-const EDGE_IDX_LEFT_OF_CENTER: usize = B - 1;
-const EDGE_IDX_RIGHT_OF_CENTER: usize = B;
+pub trait Node<K, V> {
+    fn split(&mut self);
+
+    fn merge(&mut self);
+
+    fn steal(&mut self, count: usize);
+
+    fn is_leaf(&self) -> bool;
+
+    fn len(&self) -> usize;
+}
+
+struct LeafNode<K, V> {
+    parent: Option<NonNull<InternalNode<K, V>>>,
+    parent_idx: u16,
+    len: u16,
+    keys: [MaybeUninit<K>; CAPACITY],
+    vals: [MaybeUninit<V>; CAPACITY],
+}
+
+impl<K: Ord, V> LeafNode<K, V> {
+    pub fn get_key<Q: ?Sized>(&self, k: &Q) -> (Ordering, usize)
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
+    {
+        let keys = self.keys();
+        for (idx, key) in keys.iter().enumerate() {
+            match k.cmp(key.borrow()) {
+                Ordering::Less => return (Ordering::Less, idx),
+                Ordering::Equal => return (Ordering::Equal, idx),
+                Ordering::Greater => {}
+            }
+        }
+
+        (Ordering::Less, self.keys.len())
+    }
+
+    fn keys(&self) -> &[K] {
+        unsafe { MaybeUninit::slice_assume_init_ref(self.keys.get_unchecked(..self.len as usize)) }
+    }
+
+    fn vals(&self) -> &[V] {
+        unsafe { MaybeUninit::slice_assume_init_ref(self.vals.get_unchecked(..self.len as usize)) }
+    }
+
+    fn get_val_by_index(&self, idx: usize) -> Option<&V> {
+        assert!(idx < self.vals.len());
+        unsafe {
+            let v = self.vals.get_unchecked(idx).assume_init_ref();
+            Some(v)
+        }
+    }
+}
+
+impl<K: Ord, V> Node<K, V> for LeafNode<K, V> {
+    fn split(&mut self) {
+        todo!()
+    }
+
+    fn merge(&mut self) {
+        todo!()
+    }
+
+    fn steal(&mut self, count: usize) {
+        todo!()
+    }
+
+    fn is_leaf(&self) -> bool {
+        true
+    }
+
+    fn len(&self) -> usize {
+        usize::from(self.len)
+    }
+}
+
+struct InternalNode<K, V> {
+    data: LeafNode<K, V>,
+    edges: [MaybeUninit<BoxedNode<K, V>>; 2 * B],
+}
+
+impl<K, V> InternalNode<K, V> {
+    unsafe fn as_internal_unchecked<'a>(this: *mut dyn Node<K, V>) -> &'a InternalNode<K, V> {
+        unsafe { &*(this as *mut InternalNode<K, V>) }
+    }
+
+    pub fn get_key<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
+    {
+        let mut node = self;
+        loop {
+            match node.data.get_key(k) {
+                (Ordering::Less, idx) => {
+                    if self.is_leaf() {
+                        return None;
+                    }
+
+                    unsafe {
+                        let edge = node.edges.get_unchecked(idx).assume_init();
+                        let edge_ref = edge.as_ref();
+                        let internal = Self::as_internal_unchecked(edge.as_ptr());
+                        if edge_ref.is_leaf() {
+                            match internal.data.get_key(k) {
+                                (Ordering::Equal, idx) => {
+                                    return internal.data.get_val_by_index(idx)
+                                }
+                                _ => return None,
+                            }
+                        };
+
+                        node = internal;
+                    }
+                }
+                (Ordering::Equal, idx) => return self.data.get_val_by_index(idx),
+                _ => {}
+            }
+        }
+    }
+}
+
+impl<K, V> Node<K, V> for InternalNode<K, V> {
+    fn split(&mut self) {
+        todo!()
+    }
+
+    fn merge(&mut self) {
+        todo!()
+    }
+
+    fn steal(&mut self, count: usize) {
+        todo!()
+    }
+
+    fn is_leaf(&self) -> bool {
+        false
+    }
+
+    fn len(&self) -> usize {
+        unimplemented!()
+    }
+}
 
 /// The root node of an owned tree.
-pub type Root<K, V> = NodeRef<K, V, marker::LeafOrInternal>;
+pub type Root<K, V> = NodeRef<K, V>;
+type BoxedNode<K, V> = NonNull<dyn Node<K, V>>;
 
-impl<K, V, Type> Copy for NodeRef<K, V, Type> {}
-impl<K, V, Type> Clone for NodeRef<K, V, Type> {
+pub struct NodeRef<K, V> {
+    height: usize,
+    node: BoxedNode<K, V>,
+    _marker: PhantomData<(K, V)>,
+}
+
+impl<K, V> Copy for NodeRef<K, V> {}
+impl<K, V> Clone for NodeRef<K, V> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-pub struct NodeRef<K, V, Type> {
-    height: usize,
-    node: NonNull<LeafNode<K, V>>,
-    phantom: PhantomData<Type>,
-}
-
-impl<K, V, Type> NodeRef<K, V, Type> {
-    pub fn len(&self) -> usize {
-        unsafe { usize::from((*Self::as_leaf_ptr(self)).len) }
+impl<K, V> NodeRef<K, V> {
+    pub fn search_node<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
+    {
+        let internal = unsafe { &*Self::as_internal_ptr(self) };
+        internal.get_key(key)
     }
 
     pub fn height(&self) -> usize {
         self.height
     }
 
-    pub fn reborrow(&self) -> NodeRef<K, V, Type> {
+    pub fn reborrow(&self) -> Self {
         NodeRef {
             height: self.height,
             node: self.node,
-            phantom: PhantomData,
+            _marker: PhantomData,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        unsafe { self.node.as_ref().len() }
     }
 
     fn as_leaf_ptr(this: &Self) -> *mut LeafNode<K, V> {
-        this.node.as_ptr()
-    }
-
-    pub unsafe fn drop_key_val(&self) {}
-}
-
-pub enum ForceResult<Leaf, Internal> {
-    Leaf(Leaf),
-    Internal(Internal),
-}
-
-impl<K, V> NodeRef<K, V, LeafOrInternal> {
-    pub fn force(
-        self,
-    ) -> ForceResult<NodeRef<K, V, marker::Leaf>, NodeRef<K, V, marker::Internal>> {
-        if self.height == 0 {
-            ForceResult::Leaf(NodeRef {
-                height: self.height,
-                node: self.node,
-                phantom: PhantomData,
-            })
-        } else {
-            ForceResult::Internal(NodeRef {
-                height: self.height,
-                node: self.node,
-                phantom: PhantomData,
-            })
-        }
-    }
-
-    unsafe fn cast_to_leaf_unchecked(self) -> NodeRef<K, V, marker::Leaf> {
-        assert!(self.height == 0);
-        NodeRef {
-            height: self.height,
-            node: self.node,
-            phantom: PhantomData,
-        }
-    }
-
-    unsafe fn cast_to_internal_unchecked(self) -> NodeRef<K, V, marker::Internal> {
-        assert!(self.height > 0);
-        NodeRef {
-            height: self.height,
-            node: self.node,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<K, V> NodeRef<K, V, marker::Leaf> {
-    pub fn new_leaf() -> Self {
-        Self::from_new_leaf(LeafNode::new())
-    }
-
-    pub fn forget_type(self) -> NodeRef<K, V, marker::LeafOrInternal> {
-        NodeRef {
-            height: self.height,
-            node: self.node,
-            phantom: PhantomData,
-        }
-    }
-
-    fn from_new_leaf(leaf: Box<LeafNode<K, V>>) -> Self {
-        Self {
-            height: 0,
-            node: NonNull::from(Box::leak(leaf)),
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<K, V> NodeRef<K, V, marker::Internal> {
-    fn new_internal(child: Root<K, V>) -> Self {
-        let mut new_node = InternalNode::new();
-        new_node.edges[0].write(child.node);
-        unsafe { NodeRef::from_new_internal(new_node, child.height + 1) }
-    }
-
-    unsafe fn from_new_internal(internal: Box<InternalNode<K, V>>, height: usize) -> Self {
-        assert!(height > 0);
-
-        let node = NonNull::from(Box::leak(internal)).cast();
-        let mut this = NodeRef {
-            height,
-            node,
-            phantom: PhantomData,
-        };
-        //    this.borrow_mut().correct_all_childrens_parent_links();
-        this
-    }
-
-    fn correct_all_childrens_parent_links(&mut self) {
-        let len = self.len();
-        for i in 0..=len {
-            assert!(i <= self.len());
-        }
-    }
-
-    fn from_internal(node: NonNull<InternalNode<K, V>>, height: usize) -> Self {
-        assert!(height > 0);
-        NodeRef {
-            height,
-            node: node.cast(),
-            phantom: PhantomData,
-        }
-    }
-
-    pub fn forget_type(self) -> NodeRef<K, V, marker::LeafOrInternal> {
-        NodeRef {
-            height: self.height,
-            node: self.node,
-            phantom: PhantomData,
-        }
-    }
-
-    fn as_internal_mut(&mut self) -> &mut InternalNode<K, V> {
-        let ptr = Self::as_internal_ptr(self);
-        unsafe { &mut *ptr }
+        this.node.as_ptr() as *mut LeafNode<K, V>
     }
 
     fn as_internal_ptr(this: &Self) -> *mut InternalNode<K, V> {
         this.node.as_ptr() as *mut InternalNode<K, V>
     }
-}
 
-type BoxedNode<K, V> = NonNull<LeafNode<K, V>>;
-
-struct LeafNode<K, V> {
-    /// We want to be covariant in `K` and `V`.
-    parent: Option<NonNull<InternalNode<K, V>>>,
-
-    /// This node's index into the parent node's `edges` array.
-    /// `*node.parent.edges[node.parent_idx]` should be the same thing as
-    /// `node`. This is only guaranteed to be initialized when `parent` is
-    /// non-null.
-    parent_idx: MaybeUninit<u16>,
-
-    len: u16,
-
-    keys: [MaybeUninit<K>; CAPACITY],
-    vals: [MaybeUninit<V>; CAPACITY],
-}
-
-impl<K, V> LeafNode<K, V> {
-    /// Initializes a new `LeaftNode` in-place.
-    unsafe fn init(this: *mut Self) {
-        unsafe {
-            ptr::addr_of_mut!((*this).parent).write(None);
-            ptr::addr_of_mut!((*this).len).write(0);
-        }
-    }
-
-    /// Creates a new boxed `LeafNode`.
-    fn new() -> Box<Self> {
-        unsafe {
-            let mut leaf = Box::new_uninit();
-            LeafNode::init(leaf.as_mut_ptr());
-            leaf.assume_init()
-        }
-    }
-}
-
-struct InternalNode<K, V> {
-    data: LeafNode<K, V>,
-
-    edges: [MaybeUninit<BoxedNode<K, V>>; 2 * B],
-}
-
-impl<K, V> InternalNode<K, V> {
-    /// Creates a new boxed `InternalNode`.
-    fn new() -> Box<Self> {
-        unsafe {
-            let mut node = Box::<Self>::new_uninit();
-            // We only need to initialize the data; the edges are MaybeUninit.
-            LeafNode::init(ptr::addr_of_mut!((*node.as_mut_ptr()).data));
-            node.assume_init()
-        }
-    }
-}
-
-pub mod marker {
-    pub enum Leaf {}
-
-    pub enum Internal {}
-
-    pub enum LeafOrInternal {}
+    pub unsafe fn drop_key_val(&self) {}
 }

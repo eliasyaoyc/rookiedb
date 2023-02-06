@@ -3,16 +3,18 @@ use std::{io::ErrorKind, ptr::NonNull, usize, vec};
 use bytes::BufMut;
 
 use super::{
-    manager::{
+    marker,
+    page_directory::{
         virtual_header_page_offset, DATA_PAGES_PER_HEADER, DEFAULT_PAGE_SIZE, MAX_HEADER_PAGES,
     },
-    marker, PageFile, PageRef,
+    page_file::PageFile,
+    PageRef,
 };
 use crate::{
     error::{Error, Result},
     table::{
         cache::PageCache,
-        page::manager::{effective_page_size, virtual_data_page_offset, virtual_page_num},
+        page::page_directory::{effective_page_size, virtual_data_page_offset, virtual_page_num},
     },
     utils::{bitmap::Bitmap, fs},
 };
