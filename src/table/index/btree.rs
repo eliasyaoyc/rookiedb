@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, fmt::Debug, marker::PhantomData, ops::RangeBounds};
 
-use super::node::{NodeRef, Root};
+use super::node::{Node, Root};
 use crate::error::{Error, Result};
 /// A persistent B+ tree.
 ///
@@ -44,8 +44,9 @@ impl<K, V> BTree<K, V> {
         K: Borrow<Q> + Ord,
         Q: Ord,
     {
-        let node = self.root.as_ref()?;
-        node.search_node(key)
+        // let node = self.root.as_ref()?;
+        // node.search_node(key)
+        todo!()
     }
 
     /// Returns btree whether contains this key.
@@ -68,18 +69,18 @@ impl<K, V> BTree<K, V> {
             return;
         }
 
-        match self.root {
-            Some(node) => {
-                node.reborrow().insert(key, value);
-                self.length += 1;
-            }
-            None => {
-                let mut leaf = NodeRef::new_leaf();
-                leaf.insert(key, value);
-                self.root = Some(leaf);
-                self.length += 1;
-            }
-        }
+        // match self.root {
+        //     Some(node) => {
+        //         node.reborrow().insert(key, value);
+        //         self.length += 1;
+        //     }
+        //     None => {
+        //         let mut leaf = NodeRef::new_leaf();
+        //         leaf.insert(key, value);
+        //         self.root = Some(leaf);
+        //         self.length += 1;
+        //     }
+        // }
     }
 
     /// Deletes a (key, rid) pair from a B+ tree.
@@ -114,7 +115,7 @@ pub struct IntoIter<K, V> {
 }
 
 impl<K, V> IntoIter<K, V> {
-    fn dying_next(&mut self) -> Option<NodeRef<K, V>> {
+    fn dying_next(&mut self) -> Option<Node<K, V>> {
         None
     }
 }
