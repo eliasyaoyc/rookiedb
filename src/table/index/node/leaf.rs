@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, mem::MaybeUninit, ptr::NonNull, slice::SliceIndex};
 
-use super::{move_to_slice, slice_insert, slice_remove, slice_shr, CAPACITY};
+use super::{move_to_slice, slice_insert, slice_remove, slice_shr, Node, CAPACITY};
 use crate::table::index::node::slice_shl;
 
 /// [`Leaf`] represnet a leaf node in b+tree, used for stored key-value pairs.
@@ -61,23 +61,12 @@ impl<K, V> LeafNode<K, V> {
             new_leaf.val_area_mut(..len - splitpoint),
         );
 
-        new_leaf.len = self.len - splitpoint as u16;
+        new_leaf.len = (len - splitpoint) as u16;
         self.len = splitpoint as u16;
 
         self.link_self(new_leaf.as_mut());
 
         new_leaf
-    }
-
-    fn merge(&mut self, right_leaf: &mut LeafNode<K, V>) {
-        assert!(self.len() + right_leaf.len() < CAPACITY);
-        let r_len = right_leaf.len();
-        move_to_slice(
-            right_leaf.key_area_mut(..r_len),
-            self.key_area_mut(self.len()..self.len() + r_len),
-        );
-        self.len += r_len as u16;
-        self.next = right_leaf.next;
     }
 
     fn link_self(&mut self, new_leaf: &mut LeafNode<K, V>) {
@@ -146,6 +135,10 @@ impl<K, V> LeafNode<K, V> {
         }
     }
 
+    pub fn downcast(self) -> Box<Node<K, V>> {
+        Box::new(Node::Leaf(self))
+    }
+
     /// Search key from keys of leaf node.
     pub fn search_leaf<Q: ?Sized>(&self, key: &Q) -> Option<&V>
     where
@@ -161,7 +154,11 @@ impl<K, V> LeafNode<K, V> {
         None
     }
 
-    pub fn insert_leaf(&mut self, key: K, val: V) -> (Option<V>, Option<Box<LeafNode<K, V>>>)
+    pub fn insert_leaf(
+        &mut self,
+        key: K,
+        val: V,
+    ) -> (Option<V>, Option<K>, Option<Box<LeafNode<K, V>>>)
     where
         K: Ord,
     {
@@ -169,12 +166,15 @@ impl<K, V> LeafNode<K, V> {
         if len < CAPACITY {
             let old_val = self.insert_leaf_fit(key, val);
             self.len += 1;
-            return (old_val, None);
+            return (old_val, None, None);
         }
         let mut split_node = self.split_leaf();
         let old_val = split_node.as_mut().insert_leaf_fit(key, val);
         self.len += 1;
-        (old_val, Some(split_node))
+
+        let splitkey = unsafe { split_node.keys.get_unchecked(0).assume_init_read() };
+
+        (old_val, Some(splitkey), Some(split_node))
     }
 
     pub fn remove_leaf(&mut self, key: &K)
@@ -196,7 +196,6 @@ impl<K, V> LeafNode<K, V> {
             slice_remove(self.val_area_mut(..len), remove_idx);
         }
 
-        // todo merge.
         self.len -= 1;
     }
 
@@ -244,5 +243,21 @@ impl<K, V> LeafNode<K, V> {
         self.len += 1;
         right_leaf.len -= 1;
         Some(unsafe { right_leaf.keys.get_unchecked(0).assume_init_read() })
+    }
+
+    pub fn merge(&mut self, right_leaf: &mut LeafNode<K, V>) {
+        assert!(self.len() + right_leaf.len() < CAPACITY);
+        let r_len = right_leaf.len();
+        move_to_slice(
+            right_leaf.key_area_mut(..r_len),
+            self.key_area_mut(self.len()..self.len() + r_len),
+        );
+
+        move_to_slice(
+            right_leaf.val_area_mut(..r_len),
+            self.val_area_mut(self.len()..self.len() + r_len),
+        );
+        self.len += r_len as u16;
+        self.next = right_leaf.next;
     }
 }

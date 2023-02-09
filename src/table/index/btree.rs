@@ -1,6 +1,9 @@
-use std::{borrow::Borrow, fmt::Debug, marker::PhantomData, ops::RangeBounds};
+use std::{
+    borrow::Borrow, collections::BTreeMap, fmt::Debug, marker::PhantomData, ops::RangeBounds,
+    ptr::NonNull,
+};
 
-use super::node::{Node, Root};
+use super::node::{leaf::LeafNode, Node, NodeRef, Root};
 use crate::error::{Error, Result};
 /// A persistent B+ tree.
 ///
@@ -21,14 +24,7 @@ pub struct BTree<K, V> {
 // }
 
 /// private methods.
-impl<K, V> BTree<K, V> {
-    fn entry<Q: ?Sized>(&self, k: &Q)
-    where
-        K: Borrow<Q> + Ord,
-        Q: Ord,
-    {
-    }
-}
+impl<K, V> BTree<K, V> {}
 
 impl<K, V> BTree<K, V> {
     pub fn new() -> Self {
@@ -44,9 +40,21 @@ impl<K, V> BTree<K, V> {
         K: Borrow<Q> + Ord,
         Q: Ord,
     {
-        // let node = self.root.as_ref()?;
-        // node.search_node(key)
-        todo!()
+        let node = self.root.as_ref()?;
+        node.search_node(key)
+    }
+
+    pub fn scan<T: ?Sized, R>(&self, range: R) -> Option<Vec<V>>
+    where
+        T: Ord,
+        K: Borrow<T> + Ord,
+        R: RangeBounds<T>,
+    {
+        // todo(project4_integration)
+
+        // todo(project2)
+
+        None
     }
 
     /// Returns btree whether contains this key.
@@ -61,26 +69,25 @@ impl<K, V> BTree<K, V> {
     /// Inserts a (key, rid) pair into a B+ tree. If the key already exists
     /// in the B+ tree, then the pair is not inserted and an exception is
     /// raised.
-    pub fn insert(&mut self, key: K, value: V)
+    pub fn insert(&mut self, key: K, value: V) -> Option<V>
     where
-        K: Ord,
+        K: Ord + Clone,
     {
-        if self.contains_key(&key) {
-            return;
-        }
+        match self.root.as_mut() {
+            None => {
+                let mut leaf = Node::new_leaf_boxed();
+                leaf.as_mut().insert_leaf(key, value);
 
-        // match self.root {
-        //     Some(node) => {
-        //         node.reborrow().insert(key, value);
-        //         self.length += 1;
-        //     }
-        //     None => {
-        //         let mut leaf = NodeRef::new_leaf();
-        //         leaf.insert(key, value);
-        //         self.root = Some(leaf);
-        //         self.length += 1;
-        //     }
-        // }
+                self.root = Some(NodeRef::from_node(leaf.downcast()));
+                self.length += 1;
+                None
+            }
+            Some(node) => {
+                let replaced = node.insert_node(key, value);
+                self.length += 1;
+                replaced
+            }
+        }
     }
 
     /// Deletes a (key, rid) pair from a B+ tree.
@@ -94,19 +101,6 @@ impl<K, V> BTree<K, V> {
         // todo(project2)
 
         todo!()
-    }
-
-    pub fn scan<T: ?Sized, R>(&self, range: R) -> Option<Vec<V>>
-    where
-        T: Ord,
-        K: Borrow<T> + Ord,
-        R: RangeBounds<T>,
-    {
-        // todo(project4_integration)
-
-        // todo(project2)
-
-        None
     }
 }
 
