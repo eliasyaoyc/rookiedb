@@ -7,7 +7,7 @@ pub mod reader;
 use std::{marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
 
 use self::page_directory::DEFAULT_PAGE_SIZE;
-use crate::{common::record::Record, error::Result};
+use crate::{datatypes::record::Record, error::Result};
 
 pub mod marker {
     pub enum Header {}

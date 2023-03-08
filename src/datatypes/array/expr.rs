@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use anyhow::Result;
 
 use super::*;
-use crate::common::array::scalar::Scalar;
+use crate::datatypes::array::scalar::Scalar;
 
 pub struct BinaryExpression<I1: Array, I2: Array, O: Array, F> {
     func: F,
@@ -44,7 +44,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{cmp::*, string::*, *};
-    use crate::common::array::string_array::StringArray;
+    use crate::datatypes::array::string_array::StringArray;
 
     /// Test if an array has the same content as a vector
     fn check_array_eq<'a, A: Array>(array: &'a A, vec: &[Option<A::ItemRef<'a>>])

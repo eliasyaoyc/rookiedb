@@ -1,4 +1,4 @@
-use crate::common::array::{
+use crate::datatypes::array::{
     macros::{for_all_primitive_variants, for_all_variants},
     scalar::*,
     *,

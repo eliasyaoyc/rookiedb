@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::common::array::Array;
+use crate::datatypes::array::Array;
 
 pub fn cmp_le<'a, I1: Array, I2: Array, C: Array + 'static>(
     i1: I1::ItemRef<'a>,

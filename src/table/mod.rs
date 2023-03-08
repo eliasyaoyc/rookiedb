@@ -15,7 +15,7 @@ use self::{
 };
 use crate::{
     catalog::schema::Schema,
-    common::record::{new_record_id, Record, RecordId},
+    datatypes::record::{new_record_id, Record, RecordId},
     error::{Error, Result},
 };
 

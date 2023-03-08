@@ -1,6 +1,6 @@
 use paste::paste;
 
-use crate::common::array::{macros::for_all_variants, scalar::*, *};
+use crate::datatypes::array::{macros::for_all_variants, scalar::*, *};
 
 macro_rules! impl_array_dispatch {
     ([], $( { $Abc:ident, $abc:ident, $AbcArray:ty, $AbcArrayBuilder:ty, $Owned:ty, $Ref:ty } ),*) => {

@@ -7,6 +7,7 @@
 mod catalog;
 mod common;
 mod database;
+pub mod datatypes;
 pub mod error;
 pub mod options;
 pub mod query;

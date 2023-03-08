@@ -1,4 +1,4 @@
-use crate::common::array::ArrayBuilderImpl;
+use crate::datatypes::array::ArrayBuilderImpl;
 
 /// A helper struct to build a [`DataChunk`].
 pub struct DataChunkBuilder {

@@ -27,4 +27,5 @@ hw*.zip
 demo/*
 .lock
 .idea
+.vscode
 Cargo.lock

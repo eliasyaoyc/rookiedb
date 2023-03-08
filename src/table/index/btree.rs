@@ -158,8 +158,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_insert() {
+    fn test_sample_get() {
         let mut btree = BTree::new();
         btree.insert(1, 1);
+        btree.insert(2, 2);
+        btree.insert(3, 3);
+        btree.insert(4, 4);
+
+        assert_eq!(btree.get(&1), Some(&1));
+        assert_eq!(btree.get(&2), Some(&2));
+        assert_eq!(btree.get(&3), Some(&3));
+        assert_eq!(btree.get(&4), Some(&4));
+
+        assert_eq!(btree.get(&5), None);
     }
+
+    #[test]
+    fn test_sample_remove() {
+        let mut btree = BTree::new();
+        btree.insert(1, 1);
+        assert_eq!(btree.get(&1), Some(&1));
+
+        let removed = btree.remove(&1);
+        assert_eq!(removed, Some(1));
+
+        assert_eq!(btree.get(&1), None);
+    }
+
+    #[test]
+    fn test_sample_scan() {}
 }

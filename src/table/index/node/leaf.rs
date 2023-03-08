@@ -173,7 +173,6 @@ impl<K, V> LeafNode<K, V> {
         self.len += 1;
 
         let splitkey = unsafe { split_node.keys.get_unchecked(0).assume_init_read() };
-
         (old_val, Some(splitkey), Some(split_node))
     }
 

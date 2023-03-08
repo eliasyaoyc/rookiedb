@@ -1,4 +1,4 @@
-use crate::{common::record::Record, error::Result};
+use crate::{datatypes::record::Record, error::Result};
 
 pub type ColumnId = u16;
 pub struct Schema {
